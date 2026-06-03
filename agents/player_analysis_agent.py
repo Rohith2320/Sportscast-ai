@@ -2,6 +2,9 @@ import os
 from anthropic import Anthropic
 from utils.state import SportsCastState
 from dotenv import load_dotenv
+from utils.logger import log_agent_start, log_agent_complete, log_error
+from utils.cost_tracker import track_cost
+from utils.retry import with_retry
 
 load_dotenv()
 
@@ -61,7 +64,7 @@ def format_player_data(raw_data: dict) -> str:
 
     return "\n\n".join(formatted_players)
 
-
+@with_retry(max_attempts=3, base_delay=1)
 def analyze_players(
     formatted_players: str,
     match_analysis: str,
@@ -101,7 +104,18 @@ IMPROVEMENT: [One specific area to improve]
 
 Focus on players who had the most impact — both positive and negative.
 Skip players with fewer than 10 minutes unless they had exceptional impact.
-Be specific, analytical, and back every claim with statistics."""
+Be specific, analytical, and back every claim with statistics.
+
+Writing style requirements:
+- Use periods or commas instead of em dashes
+- Never use these words: notably, crucially, underscore, delve, encapsulate, it is worth noting, it is important to note
+- Vary sentence length. Mix short punchy sentences with longer analytical ones.
+- Write like a human sports journalist, not an AI assistant
+- Never start consecutive sentences with "The"
+- Be direct. Say what happened. Do not announce that you are about to say it.
+- Avoid overly long sentences with multiple clauses strung together
+
+"""
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
@@ -109,6 +123,12 @@ Be specific, analytical, and back every claim with statistics."""
         messages=[
             {"role": "user", "content": prompt}
         ]
+    )
+
+    track_cost(
+        model="claude-sonnet-4-6",
+        input_tokens=message.usage.input_tokens,
+        output_tokens=message.usage.output_tokens
     )
 
     return message.content[0].text
@@ -128,6 +148,8 @@ def player_analysis_node(state: SportsCastState) -> dict:
     match_analysis = state["match_analysis"]
     sport = state.get("sport", "NBA").upper()
 
+    start_time = log_agent_start("PlayerAnalysisAgent")
+
     try:
         print("Formatting player data...")
         formatted_players = format_player_data(raw_data)
@@ -135,9 +157,9 @@ def player_analysis_node(state: SportsCastState) -> dict:
         print("Sending to Claude for player analysis...")
         analysis = analyze_players(formatted_players, match_analysis, sport)
 
-        print("Player analysis complete")
+        log_agent_complete("PlayerAnalysisAgent", start_time)
         return {"player_analysis": analysis}
 
     except Exception as e:
-        print(f"Error in player analysis: {e}")
+        log_error("PlayerAnalysisAgent", str(e))
         return {"error": f"Player analysis failed: {str(e)}"}

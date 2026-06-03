@@ -1,6 +1,9 @@
 import os
 from anthropic import Anthropic
 from utils.state import SportsCastState
+from utils.logger import log_agent_start, log_agent_complete, log_error, log_api_call
+from utils.cost_tracker import track_cost
+from utils.retry import with_retry
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -80,7 +83,7 @@ def format_nba_data(raw_data: dict) -> str:
 
     return formatted
 
-
+@with_retry(max_attempts=3, base_delay=1)
 def analyze_match(formatted_data: str, sport: str = "NBA") -> str:
     """
     Use Claude Sonnet to analyze the match data.
@@ -118,31 +121,45 @@ Produce a structured analysis with exactly these four sections:
 
 Write at the level of a professional sports journalist. Be specific, 
 use the actual player names and statistics, and provide genuine insight 
-rather than generic observations."""
+rather than generic observations.
+
+Writing style requirements:
+- Use periods or commas instead of em dashes
+- Never use these words: notably, crucially, underscore, delve, encapsulate, it is worth noting, it is important to note
+- Vary sentence length. Mix short punchy sentences with longer analytical ones.
+- Write like a human sports journalist, not an AI assistant
+- Never start consecutive sentences with "The"
+- Be direct. Say what happened. Do not announce that you are about to say it.
+- Avoid overly long sentences with multiple clauses strung together
+
+"""
 
     message = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1500,
+        max_tokens=2000,
         messages=[
             {"role": "user", "content": prompt}
         ]
+    )
+
+    # Track cost
+    track_cost(
+        model="claude-sonnet-4-6",
+        input_tokens=message.usage.input_tokens,
+        output_tokens=message.usage.output_tokens
     )
 
     return message.content[0].text
 
 
 def match_analysis_node(state: SportsCastState) -> dict:
-    """
-    LangGraph node that analyzes match data.
-    Reads raw_match_data from state, writes match_analysis to state.
-    """
-
-    # Check if previous node had an error
     if state.get("error"):
         return {}
 
     raw_data = state["raw_match_data"]
     sport = state.get("sport", "NBA").upper()
+
+    start_time = log_agent_start("MatchAnalysisAgent")
 
     try:
         print("Formatting match data...")
@@ -151,9 +168,9 @@ def match_analysis_node(state: SportsCastState) -> dict:
         print("Sending to Claude for analysis...")
         analysis = analyze_match(formatted_data, sport)
 
-        print("Match analysis complete")
+        log_agent_complete("MatchAnalysisAgent", start_time)
         return {"match_analysis": analysis}
 
     except Exception as e:
-        print(f"Error in match analysis: {e}")
+        log_error("MatchAnalysisAgent", str(e))
         return {"error": f"Match analysis failed: {str(e)}"}

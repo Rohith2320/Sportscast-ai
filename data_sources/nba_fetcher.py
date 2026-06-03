@@ -1,9 +1,11 @@
 from nba_api.stats.endpoints import boxscoretraditionalv2
 from nba_api.stats.endpoints import leaguegamefinder
 from utils.state import SportsCastState
+from utils.logger import log_agent_start, log_agent_complete, log_error, log_api_call
+from utils.retry import with_retry
 import time
 
-
+@with_retry(max_attempts=3, base_delay=2)
 def fetch_nba_match(match_id: str) -> dict:
     """
     Fetch post-match data for an NBA game using nba_api package.
@@ -41,13 +43,14 @@ def nba_fetch_node(state: SportsCastState) -> dict:
     """
     
     match_id = state["match_id"]
-    
+    start_time = log_agent_start("NBAFetchAgent")
+
     try:
-        print(f"Fetching NBA match data for game ID: {match_id}")
+        log_api_call("NBA Stats API", f"boxscore/{match_id}")
         data = fetch_nba_match(match_id)
-        print("NBA data fetched successfully")
+        log_agent_complete("NBAFetchAgent", start_time)
         return {"raw_match_data": data}
-    
+
     except Exception as e:
-        print(f"Error fetching NBA data: {e}")
+        log_error("NBAFetchAgent", str(e))
         return {"error": f"NBA data fetch failed: {str(e)}"}

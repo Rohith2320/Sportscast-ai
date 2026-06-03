@@ -21,5 +21,8 @@ class SportsCastState(TypedDict):
     # Error handling
     error: Optional[str]
 
+    # Persona selection
+    persona: Optional[str]  # "espn_formal", "tactical_coach"
+
 
 
