@@ -3,8 +3,7 @@ from graph import run_nba_analysis
 print("Running full NBA pipeline with team name search...")
 print("=" * 50)
 
-result = run_nba_analysis("Lakers", persona="espn_formal")
-
+result = run_nba_analysis("Knicks", persona="espn_formal")
 if result.get("error"):
     print(f"\nPipeline failed: {result['error']}")
 else:
