@@ -75,17 +75,19 @@ def analyze_players(
     Returns structured breakdown for each player.
     """
 
-    prompt = f"""You are an expert {sport} analyst specializing in 
-individual player evaluation and performance breakdown.
-
-You have already produced the following match analysis:
+    match_context_section = f"""You have already produced the following match analysis:
 
 === MATCH CONTEXT ===
 {match_analysis[:1000]}
 ====================
 
 Now analyze each individual player's performance using both their 
-statistics and the match context above.
+statistics and the match context above.""" if match_analysis else """Now analyze each individual player's performance using their statistics."""
+
+    prompt = f"""You are an expert {sport} analyst specializing in 
+individual player evaluation and performance breakdown.
+
+{match_context_section}
 
 Here are the player statistics:
 
@@ -145,7 +147,7 @@ def player_analysis_node(state: SportsCastState) -> dict:
         return {}
 
     raw_data = state["raw_match_data"]
-    match_analysis = state["match_analysis"]
+    match_analysis = state.get("match_analysis") or ""  
     sport = state.get("sport", "NBA").upper()
 
     start_time = log_agent_start("PlayerAnalysisAgent")
