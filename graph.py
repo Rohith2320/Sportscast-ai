@@ -1,10 +1,10 @@
 from langgraph.graph import StateGraph, END
 from utils.state import SportsCastState
+from utils.cache import save_to_cache, load_from_cache
 from data_sources.nba_fetcher import nba_fetch_node
 from agents.match_analysis_agent import match_analysis_node
 from agents.player_analysis_agent import player_analysis_node
 from agents.narrative_agent import narrative_node
-
 
 def should_continue_after_fetch(state: SportsCastState) -> str:
     """
@@ -91,18 +91,25 @@ nba_pipeline = build_nba_graph()
 
 def run_nba_analysis(
     team_or_game_id: str,
-    persona: str = "espn_formal"
+    persona: str = "espn_formal",
+    force_refresh: bool = False
 ) -> SportsCastState:
     """
-    Run the full NBA analysis pipeline.
+    Run the full NBA analysis pipeline with caching.
 
     Args:
-        team_or_game_id: Team name (e.g. "Lakers") or game ID
-        persona: Analysis persona - "espn_formal" or "tactical_coach"
+        team_or_game_id: Team name or game ID
+        persona: Analysis persona
+        force_refresh: If True, bypass cache and re-analyze
 
     Returns:
         Final state containing all analysis results
     """
+
+    print(f"\nStarting NBA analysis pipeline...")
+    print(f"Input: {team_or_game_id}")
+    print(f"Persona: {persona}")
+    print("-" * 40)
 
     # Initial state
     initial_state = {
@@ -119,11 +126,12 @@ def run_nba_analysis(
         "error": None,
     }
 
-    print(f"\nStarting NBA analysis pipeline...")
-    print(f"Input: {team_or_game_id}")
-    print(f"Persona: {persona}")
-    print("-" * 40)
-
+    # Run pipeline
     result = nba_pipeline.invoke(initial_state)
+
+    # Save to cache if successful
+    if not result.get("error") and result.get("narrative"):
+        game_id = result.get("match_id")
+        save_to_cache(game_id, "nba", result)
 
     return result
