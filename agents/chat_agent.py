@@ -73,6 +73,10 @@ def classify_intent(query: str, chat_history: list[dict]) -> str:
     ]
     if any(p in query_lower for p in comparative_patterns):
         return "comparative"
+    
+    # Why questions are always analytical - check before factual
+    if query_lower.startswith("why") or " why " in query_lower:
+        return "analytical"
 
     # Factual queries
     factual_patterns = [
