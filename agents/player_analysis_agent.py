@@ -147,14 +147,20 @@ def player_analysis_node(state: SportsCastState) -> dict:
         return {}
 
     raw_data = state["raw_match_data"]
-    match_analysis = state.get("match_analysis") or ""  
-    sport = state.get("sport", "NBA").upper()
+    match_analysis = state.get("match_analysis") or ""
+    sport = state.get("sport", "nba").lower()
 
     start_time = log_agent_start("PlayerAnalysisAgent")
 
     try:
         print("Formatting player data...")
-        formatted_players = format_player_data(raw_data)
+
+        # F1 uses driver results as "player" data
+        if sport == "f1":
+            from data_sources.f1_fetcher import format_f1_data
+            formatted_players = format_f1_data(raw_data)
+        else:
+            formatted_players = format_player_data(raw_data)
 
         print("Sending to Claude for player analysis...")
         analysis = analyze_players(formatted_players, match_analysis, sport)

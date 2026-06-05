@@ -1,11 +1,13 @@
-from typing import TypedDict, Optional, List
+from typing import TypedDict, Optional, List, Annotated
+import operator
+
 
 class SportsCastState(TypedDict):
     # Input fields
     sport: str
     match_id: str
 
-    # RAW data from API
+    # Raw data from API
     raw_match_data: Optional[dict]
 
     # Agent outputs
@@ -18,11 +20,8 @@ class SportsCastState(TypedDict):
     user_query: Optional[str]
     chat_response: Optional[str]
 
-    # Error handling
-    error: Optional[str]
-
     # Persona selection
-    persona: Optional[str]  # "espn_formal", "tactical_coach"
+    persona: Optional[str]
 
-
-
+    # Error handling - Annotated allows multiple parallel writes
+    error: Annotated[Optional[str], operator.or_]

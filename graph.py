@@ -2,29 +2,40 @@ from langgraph.graph import StateGraph, END
 from utils.state import SportsCastState
 from utils.cache import save_to_cache, load_from_cache
 from data_sources.nba_fetcher import nba_fetch_node
+from data_sources.f1_fetcher import f1_fetch_node
 from agents.match_analysis_agent import match_analysis_node
 from agents.player_analysis_agent import player_analysis_node
 from agents.enrichment_agent import enrichment_node
 from agents.narrative_agent import narrative_node
+from agents.chat_agent import chat_node
+
+
+# ─────────────────────────────────────────────
+# CONDITIONAL EDGES
+# ─────────────────────────────────────────────
+
+def route_to_fetch(state: SportsCastState) -> str:
+    """Route to correct fetch node based on sport."""
+    sport = state.get("sport", "nba").lower()
+    routes = {
+        "nba": "nba_fetch",
+        "f1": "f1_fetch",
+    }
+    return routes.get(sport, "nba_fetch")
+
 
 def should_continue_after_fetch(state: SportsCastState) -> str:
-    """
-    Conditional edge after data fetch.
-    If fetch failed, go to end. Otherwise continue to analysis.
-    """
+    """After fetch — continue or end on error."""
     if state.get("error"):
-        print(f"Pipeline stopping due to error: {state['error']}")
+        print(f"Pipeline stopping: {state['error']}")
         return "end"
     return "analyze"
 
 
 def should_continue_after_analysis(state: SportsCastState) -> str:
-    """
-    Conditional edge after parallel analysis.
-    If either analysis failed, go to end. Otherwise continue to narrative.
-    """
+    """After analysis — continue to narrative or end."""
     if state.get("error"):
-        print(f"Pipeline stopping due to error: {state['error']}")
+        print(f"Pipeline stopping: {state['error']}")
         return "end"
     if not state.get("match_analysis"):
         print("Match analysis missing, skipping narrative")
@@ -32,47 +43,98 @@ def should_continue_after_analysis(state: SportsCastState) -> str:
     return "narrative"
 
 
-def build_nba_graph() -> StateGraph:
+# ─────────────────────────────────────────────
+# ROUTER NODE
+# ─────────────────────────────────────────────
+
+def router_node(state: SportsCastState) -> dict:
     """
-    Build and return the NBA analysis LangGraph pipeline.
+    Entry point node. Acts as routing hub.
+    Conditional edge handles actual routing to sport-specific fetch node.
+    """
+    return {}
+
+
+# ─────────────────────────────────────────────
+# GRAPH BUILDER
+# ─────────────────────────────────────────────
+
+def build_sportscast_graph() -> StateGraph:
+    """
+    Build the full multi-sport SportsCast AI pipeline.
 
     Graph structure:
-    fetch -> [match_analysis, player_analysis] (parallel)
-          -> enrichment (adds match context to top players)
-          -> narrative
-          -> END
+    START
+      ↓
+    router
+      ↓          ↓
+    nba_fetch   f1_fetch   (more sports added here)
+      ↓          ↓
+    [match_analysis + player_analysis] (parallel)
+      ↓
+    enrichment
+      ↓
+    narrative
+      ↓
+    END
     """
 
     graph = StateGraph(SportsCastState)
 
-    # Add all nodes
-    graph.add_node("fetch", nba_fetch_node)
+    # Router entry point
+    graph.add_node("router", router_node)
+
+    # Sport-specific fetch nodes
+    graph.add_node("nba_fetch", nba_fetch_node)
+    graph.add_node("f1_fetch", f1_fetch_node)
+
+    # Shared analysis nodes
     graph.add_node("match_analysis", match_analysis_node)
     graph.add_node("player_analysis", player_analysis_node)
     graph.add_node("enrichment", enrichment_node)
     graph.add_node("narrative", narrative_node)
+    graph.add_node("chat", chat_node)
 
-    # Entry point
-    graph.set_entry_point("fetch")
+    # Entry point is router
+    graph.set_entry_point("router")
 
-    # Conditional edge after fetch
+    # Router branches to correct fetch node
     graph.add_conditional_edges(
-        "fetch",
+        "router",
+        route_to_fetch,
+        {
+            "nba_fetch": "nba_fetch",
+            "f1_fetch": "f1_fetch",
+        }
+    )
+
+    # After NBA fetch — parallel analysis
+    graph.add_conditional_edges(
+        "nba_fetch",
         should_continue_after_fetch,
         {
             "analyze": "match_analysis",
             "end": END
         }
     )
+    graph.add_edge("nba_fetch", "player_analysis")
 
-    # Parallel execution
-    graph.add_edge("fetch", "player_analysis")
+    # After F1 fetch — parallel analysis
+    graph.add_conditional_edges(
+        "f1_fetch",
+        should_continue_after_fetch,
+        {
+            "analyze": "match_analysis",
+            "end": END
+        }
+    )
+    graph.add_edge("f1_fetch", "player_analysis")
 
     # Both analysis nodes feed into enrichment
     graph.add_edge("match_analysis", "enrichment")
     graph.add_edge("player_analysis", "enrichment")
 
-    # Conditional edge after enrichment
+    # Enrichment to narrative
     graph.add_conditional_edges(
         "enrichment",
         should_continue_after_analysis,
@@ -82,40 +144,52 @@ def build_nba_graph() -> StateGraph:
         }
     )
 
-    # Narrative goes to end
     graph.add_edge("narrative", END)
 
     return graph.compile()
 
-# Build the graph once at module level
-nba_pipeline = build_nba_graph()
 
-def run_nba_analysis(
-    team_or_game_id: str,
+# Build once at module level
+sportscast_pipeline = build_sportscast_graph()
+
+
+# ─────────────────────────────────────────────
+# PUBLIC API
+# ─────────────────────────────────────────────
+
+def run_analysis(
+    sport: str,
+    match_id: str,
     persona: str = "espn_formal",
     force_refresh: bool = False
 ) -> SportsCastState:
     """
-    Run the full NBA analysis pipeline with caching.
+    Run the full SportsCast analysis pipeline for any sport.
 
     Args:
-        team_or_game_id: Team name or game ID
+        sport: "nba", "f1", "nfl", "soccer", "valorant"
+        match_id: Match identifier, team name, or "latest"
         persona: Analysis persona
-        force_refresh: If True, bypass cache and re-analyze
+        force_refresh: Bypass cache
 
     Returns:
-        Final state containing all analysis results
+        Final state with complete analysis
     """
 
-    print(f"\nStarting NBA analysis pipeline...")
-    print(f"Input: {team_or_game_id}")
-    print(f"Persona: {persona}")
+    # Check cache first
+    if not force_refresh:
+        cached = load_from_cache(match_id, sport)
+        if cached:
+            print(f"Loaded from cache: {sport} {match_id}")
+            return cached
+
+    print(f"\nStarting {sport.upper()} analysis pipeline...")
+    print(f"Input: {match_id} | Persona: {persona}")
     print("-" * 40)
 
-    # Initial state
     initial_state = {
-        "sport": "nba",
-        "match_id": team_or_game_id,
+        "sport": sport,
+        "match_id": match_id,
         "raw_match_data": None,
         "match_analysis": None,
         "player_analysis": None,
@@ -127,12 +201,23 @@ def run_nba_analysis(
         "error": None,
     }
 
-    # Run pipeline
-    result = nba_pipeline.invoke(initial_state)
+    result = sportscast_pipeline.invoke(
+        initial_state,
+        {"recursion_limit": 25}
+    )
 
-    # Save to cache if successful
+    # Cache successful results
     if not result.get("error") and result.get("narrative"):
-        game_id = result.get("match_id")
-        save_to_cache(game_id, "nba", result)
+        game_id = result.get("match_id", match_id)
+        save_to_cache(game_id, sport, result)
 
     return result
+
+
+def run_nba_analysis(
+    team_or_game_id: str,
+    persona: str = "espn_formal",
+    force_refresh: bool = False
+) -> SportsCastState:
+    """Backward compatible wrapper for NBA analysis."""
+    return run_analysis("nba", team_or_game_id, persona, force_refresh)

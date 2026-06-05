@@ -157,13 +157,19 @@ def match_analysis_node(state: SportsCastState) -> dict:
         return {}
 
     raw_data = state["raw_match_data"]
-    sport = state.get("sport", "NBA").upper()
+    sport = state.get("sport", "nba").lower()
 
     start_time = log_agent_start("MatchAnalysisAgent")
 
     try:
         print("Formatting match data...")
-        formatted_data = format_nba_data(raw_data)
+
+        # Route to correct formatter based on sport
+        if sport == "f1":
+            from data_sources.f1_fetcher import format_f1_data
+            formatted_data = format_f1_data(raw_data)
+        else:
+            formatted_data = format_nba_data(raw_data)
 
         print("Sending to Claude for analysis...")
         analysis = analyze_match(formatted_data, sport)

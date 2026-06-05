@@ -15,7 +15,8 @@ def _ensure_cache_dir():
 
 def _cache_path(game_id: str, sport: str) -> str:
     """Build cache file path for a game."""
-    return os.path.join(CACHE_DIR, f"{sport}_{game_id}.json")
+    safe_id = game_id.replace("/", "_")
+    return os.path.join(CACHE_DIR, f"{sport}_{safe_id}.json")
 
 
 def save_to_cache(game_id: str, sport: str, state: dict):
