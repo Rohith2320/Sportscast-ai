@@ -369,7 +369,26 @@ def run_api_tests():
         except Exception as e:
             r.skip_test(f"VLR API unreachable - not a blocker (has retry logic)")
 
-
+    def test_mlb_api(r):
+        try:
+            import requests
+            from datetime import datetime
+            today = datetime.now().strftime("%Y-%m-%d")
+            response = requests.get(
+                "https://statsapi.mlb.com/api/v1/schedule",
+                params={"sportId": 1, "date": today},
+                timeout=15
+            )
+            if response.status_code == 200:
+                data = response.json()
+                dates = data.get("dates", [])
+                count = len(dates[0].get("games", [])) if dates else 0
+                r.pass_test(f"MLB API working - {count} games today")
+            else:
+                r.fail_test(f"MLB API status: {response.status_code}")
+        except Exception as e:
+            r.fail_test(f"MLB API failed: {e}")
+       
     def test_anthropic_api(r):
         try:
             import anthropic
@@ -408,6 +427,7 @@ def run_api_tests():
     suite.run("F1 Jolpica API", test_f1_api)
     suite.run("BSD Soccer API", test_bsd_api)
     suite.run("VLR Esports API", test_vlr_api)
+    suite.run("MLB Stats API", test_mlb_api)
     suite.run("Anthropic Claude API", test_anthropic_api)
     suite.run("OpenAI GPT API", test_openai_api)
 
@@ -576,7 +596,7 @@ def run_consistency_tests():
     suite.run("NBA Cache Complete", test_cached_nba_complete)
     suite.run("F1 Cache Complete", test_cached_f1_complete)
     suite.run("Soccer Cache Complete", test_cached_soccer_complete)
-    
+
     def test_cached_valorant_complete(r):
         cached = load_from_cache("684611", "valorant")
         if not cached:
@@ -589,7 +609,20 @@ def run_consistency_tests():
         else:
             r.pass_test("Valorant cached match has all required fields")
 
+    def test_cached_mlb_complete(r):
+        cached = load_from_cache("824916", "mlb")
+        if not cached:
+            r.skip_test("MLB game not in cache - run test_mlb_pipeline.py first")
+            return
+        required = ["match_analysis", "narrative"]
+        missing = [f for f in required if not cached.get(f)]
+        if missing:
+            r.fail_test(f"Cached MLB game missing fields: {missing}")
+        else:
+            r.pass_test("MLB cached game has all required fields")
+
     suite.run("Valorant Cache Complete", test_cached_valorant_complete)
+    suite.run("MLB Cache Complete", test_cached_mlb_complete)
     suite.run("Cache Load Zero Cost", test_cache_load_zero_cost)
     suite.run("No Em Dashes in Narrative", test_narrative_no_em_dashes)
     suite.run("Narrative Minimum Length", test_narrative_minimum_length)

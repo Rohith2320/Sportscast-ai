@@ -5,6 +5,7 @@ from data_sources.nba_fetcher import nba_fetch_node
 from data_sources.f1_fetcher import f1_fetch_node
 from data_sources.soccer_fetcher import soccer_fetch_node
 from data_sources.valorant_fetcher import valorant_fetch_node
+from data_sources.mlb_fetcher import mlb_fetch_node
 from agents.match_analysis_agent import match_analysis_node
 from agents.player_analysis_agent import player_analysis_node
 from agents.enrichment_agent import enrichment_node
@@ -26,6 +27,8 @@ def route_to_fetch(state: SportsCastState) -> str:
         "football": "soccer_fetch",
         "valorant": "valorant_fetch",
         "valo": "valorant_fetch",
+        "mlb": "mlb_fetch",
+        "baseball": "mlb_fetch",
     }
     return routes.get(sport, "nba_fetch")
 
@@ -95,6 +98,7 @@ def build_sportscast_graph() -> StateGraph:
     graph.add_node("f1_fetch", f1_fetch_node)
     graph.add_node("soccer_fetch", soccer_fetch_node)
     graph.add_node("valorant_fetch", valorant_fetch_node)
+    graph.add_node("mlb_fetch", mlb_fetch_node)
 
     # Shared analysis nodes
     graph.add_node("match_analysis", match_analysis_node)
@@ -115,6 +119,7 @@ def build_sportscast_graph() -> StateGraph:
             "f1_fetch": "f1_fetch",
             "soccer_fetch": "soccer_fetch",
             "valorant_fetch": "valorant_fetch",
+            "mlb_fetch": "mlb_fetch",
         }
     )
 
@@ -160,7 +165,15 @@ def build_sportscast_graph() -> StateGraph:
             "end": END
         }
     )
+
     graph.add_edge("valorant_fetch", "player_analysis")
+
+    graph.add_conditional_edges(
+        "mlb_fetch",
+        should_continue_after_fetch,
+        {"analyze": "match_analysis", "end": END}
+    )
+    graph.add_edge("mlb_fetch", "player_analysis")
 
     # Both analysis nodes feed into enrichment
     graph.add_edge("match_analysis", "enrichment")

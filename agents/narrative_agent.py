@@ -99,6 +99,29 @@ What does this result mean for Masters London 2026?
 Reference the tournament format and standings implications.
 End with what both teams need to do next."""
 
+    elif sport.upper() == "MLB":
+        structure_guide = """Write a compelling MLB game narrative of 4 paragraphs:
+
+PARAGRAPH 1 - OPENING HOOK:
+Start with the single most interesting thing about this game.
+The comeback, the dominant pitching, the late-inning heroics.
+Not just the final score.
+
+PARAGRAPH 2 - THE STARTING PITCHER:
+MLB narratives center on pitching. Dedicate this paragraph to
+the most dominant pitcher in the game. Innings pitched, strikeouts,
+hits allowed. How did he attack hitters? What did the linescore show?
+
+PARAGRAPH 3 - THE TURNING POINT:
+Identify the exact inning where the game turned.
+Reference the linescore data directly. Who got the key hit?
+What was the score before and after that inning?
+
+PARAGRAPH 4 - WHAT THIS MEANS:
+What does this result reveal about both teams?
+Reference specific players and stats from THIS game.
+End with one sentence a fan of the losing team would find painful but accurate."""
+
     else:
         structure_guide = f"""Write a compelling {sport} game narrative of 4 paragraphs:
 
