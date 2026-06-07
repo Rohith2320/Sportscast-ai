@@ -90,11 +90,14 @@ def classify_intent(query: str, chat_history: list[dict]) -> str:
 
     # Out of scope detection
     out_of_scope_patterns = [
-        "super bowl", "world series", "stanley cup",
-        "career average", "all time", "last season",
-        "trade", "contract", "salary", "draft",
-        "other game", "another game", "different game"
-    ]
+    "super bowl", "world series", "stanley cup",
+    "career average", "all time", "last season",
+    "trade", "contract", "salary", "draft",
+    "other game", "another game", "different game",
+    "weather", "temperature", "forecast",      # add these
+    "stock", "crypto", "bitcoin",               # add these
+    "news", "politics", "movie", "music"        # add these
+    ]   
     if any(p in query_lower for p in out_of_scope_patterns):
         return "out_of_scope"
 

@@ -203,6 +203,12 @@ def run_analysis(
     print(f"Input: {match_id} | Persona: {persona}")
     print("-" * 40)
 
+    # Validate inputs
+    if not sport:
+        return {"error": "Sport is required", "narrative": None}
+    if not match_id:
+        return {"error": "Match ID or team name is required", "narrative": None}
+
     initial_state = {
         "sport": sport,
         "match_id": match_id,
