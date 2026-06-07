@@ -76,6 +76,29 @@ PARAGRAPH 4 - CHAMPIONSHIP IMPLICATIONS:
 What does this result mean for the championship standings?
 Must reference specific points gaps from the data.
 End with one sentence about what the next race needs to produce."""
+
+    elif sport.upper() == "VALORANT":
+        structure_guide = """Write a compelling Valorant esports match narrative of 4 paragraphs:
+
+PARAGRAPH 1 - OPENING HOOK:
+Start with the single most interesting thing about this match result.
+Reference the tournament context and what this result means for both teams.
+
+PARAGRAPH 2 - THE WINNING TEAM:
+Analyze the winning team's performance using your knowledge of their
+players, typical agent compositions, and strategic tendencies.
+Reference specific players by IGN and their known roles/strengths.
+
+PARAGRAPH 3 - THE TACTICAL STORY:
+Based on your knowledge of both teams' playstyles, explain HOW this
+result likely happened. Agent compositions, map preferences, economic
+strategies. Be specific about known team tendencies.
+
+PARAGRAPH 4 - TOURNAMENT IMPLICATIONS:
+What does this result mean for Masters London 2026?
+Reference the tournament format and standings implications.
+End with what both teams need to do next."""
+
     else:
         structure_guide = f"""Write a compelling {sport} game narrative of 4 paragraphs:
 
