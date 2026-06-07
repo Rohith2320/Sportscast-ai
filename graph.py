@@ -3,6 +3,7 @@ from utils.state import SportsCastState
 from utils.cache import save_to_cache, load_from_cache
 from data_sources.nba_fetcher import nba_fetch_node
 from data_sources.f1_fetcher import f1_fetch_node
+from data_sources.soccer_fetcher import soccer_fetch_node
 from agents.match_analysis_agent import match_analysis_node
 from agents.player_analysis_agent import player_analysis_node
 from agents.enrichment_agent import enrichment_node
@@ -20,6 +21,8 @@ def route_to_fetch(state: SportsCastState) -> str:
     routes = {
         "nba": "nba_fetch",
         "f1": "f1_fetch",
+        "soccer": "soccer_fetch",
+        "football": "soccer_fetch",
     }
     return routes.get(sport, "nba_fetch")
 
@@ -87,6 +90,7 @@ def build_sportscast_graph() -> StateGraph:
     # Sport-specific fetch nodes
     graph.add_node("nba_fetch", nba_fetch_node)
     graph.add_node("f1_fetch", f1_fetch_node)
+    graph.add_node("soccer_fetch", soccer_fetch_node)
 
     # Shared analysis nodes
     graph.add_node("match_analysis", match_analysis_node)
@@ -105,6 +109,7 @@ def build_sportscast_graph() -> StateGraph:
         {
             "nba_fetch": "nba_fetch",
             "f1_fetch": "f1_fetch",
+            "soccer_fetch": "soccer_fetch",
         }
     )
 
@@ -129,6 +134,17 @@ def build_sportscast_graph() -> StateGraph:
         }
     )
     graph.add_edge("f1_fetch", "player_analysis")
+
+    # After Soccer fetch — parallel analysis
+    graph.add_conditional_edges(
+        "soccer_fetch",
+        should_continue_after_fetch,
+        {
+            "analyze": "match_analysis",
+            "end": END
+        }
+    )
+    graph.add_edge("soccer_fetch", "player_analysis")
 
     # Both analysis nodes feed into enrichment
     graph.add_edge("match_analysis", "enrichment")

@@ -168,6 +168,9 @@ def match_analysis_node(state: SportsCastState) -> dict:
         if sport == "f1":
             from data_sources.f1_fetcher import format_f1_data
             formatted_data = format_f1_data(raw_data)
+        elif sport in ["soccer", "football"]:
+            from data_sources.soccer_fetcher import format_soccer_data
+            formatted_data = format_soccer_data(raw_data)
         else:
             formatted_data = format_nba_data(raw_data)
 

@@ -155,10 +155,13 @@ def player_analysis_node(state: SportsCastState) -> dict:
     try:
         print("Formatting player data...")
 
-        # F1 uses driver results as "player" data
+        # Route to correct formatter based on sport
         if sport == "f1":
             from data_sources.f1_fetcher import format_f1_data
             formatted_players = format_f1_data(raw_data)
+        elif sport in ["soccer", "football"]:
+            from data_sources.soccer_fetcher import format_soccer_data
+            formatted_players = format_soccer_data(raw_data)
         else:
             formatted_players = format_player_data(raw_data)
 

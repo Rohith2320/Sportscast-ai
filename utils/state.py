@@ -24,4 +24,4 @@ class SportsCastState(TypedDict):
     persona: Optional[str]
 
     # Error handling - Annotated allows multiple parallel writes
-    error: Annotated[Optional[str], operator.or_]
+    error: Annotated[Optional[str], lambda x, y: y if y is not None else x]
