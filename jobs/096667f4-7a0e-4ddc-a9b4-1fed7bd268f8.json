@@ -1,0 +1,16 @@
+{
+  "job_id": "096667f4-7a0e-4ddc-a9b4-1fed7bd268f8",
+  "sport": "mlb",
+  "match_id": "824916",
+  "persona": "espn_formal",
+  "status": "complete",
+  "progress": [
+    "13:57:16 — Starting MLB analysis...",
+    "13:57:16 — Loaded from cache instantly"
+  ],
+  "result_cache_key": "mlb_824916",
+  "cost": 0.0,
+  "error": null,
+  "created_at": "2026-06-08T13:57:16.787701",
+  "completed_at": "2026-06-08T13:57:16.805439"
+}

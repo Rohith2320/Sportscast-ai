@@ -1,0 +1,17 @@
+{
+  "job_id": "d14abafc-999c-43cc-989d-d12785b0cb03",
+  "sport": "valorant",
+  "match_id": "latest",
+  "persona": "espn_formal",
+  "status": "complete",
+  "progress": [
+    "14:01:12 — Starting VALORANT analysis...",
+    "14:01:12 — Fetching VALORANT data...",
+    "14:02:25 — Analysis complete"
+  ],
+  "result_cache_key": "valorant_684614",
+  "cost": 0.051414,
+  "error": null,
+  "created_at": "2026-06-08T14:01:12.671437",
+  "completed_at": "2026-06-08T14:02:25.960774"
+}
