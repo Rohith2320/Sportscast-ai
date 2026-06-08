@@ -138,8 +138,17 @@ def enrichment_node(state: SportsCastState) -> dict:
     if state.get("error"):
         return {}
 
+    sport = state.get("sport", "nba").lower()
     match_analysis = state.get("match_analysis", "")
     player_analysis = state.get("player_analysis", "")
+
+    # Sports without structured player analysis — skip enrichment
+    non_enrichable = ["f1", "soccer", "football", "valorant", "mlb"]
+    if sport in non_enrichable:
+        start_time = log_agent_start("EnrichmentAgent")
+        print(f"Skipping enrichment for {sport.upper()} — no structured player stats available")
+        log_agent_complete("EnrichmentAgent", start_time)
+        return {}
 
     # If either is missing, skip enrichment
     if not match_analysis or not player_analysis:
@@ -152,6 +161,7 @@ def enrichment_node(state: SportsCastState) -> dict:
         top_players = extract_top_players(player_analysis, top_n=3)
 
         if not top_players:
+            print("No structured player sections found — skipping enrichment")
             log_agent_complete("EnrichmentAgent", start_time)
             return {}
 
@@ -167,12 +177,10 @@ def enrichment_node(state: SportsCastState) -> dict:
         )
 
         # Rebuild player analysis with enriched sections
-        # Replace original sections for top players with enriched versions
         updated_analysis = player_analysis
 
         for i, player in enumerate(top_players):
             original_section = player["section"]
-            # Get corresponding enriched section
             enriched_parts = enriched_sections.split("---")
             if i < len(enriched_parts):
                 enriched_section = enriched_parts[i].strip()
@@ -187,5 +195,4 @@ def enrichment_node(state: SportsCastState) -> dict:
 
     except Exception as e:
         log_error("EnrichmentAgent", str(e))
-        # Don't fail the pipeline - return empty dict to keep original analysis
         return {}

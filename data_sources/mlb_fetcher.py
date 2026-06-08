@@ -242,16 +242,41 @@ def _extract_pitchers(team: dict) -> list:
 
 def _extract_top_performers(box: dict) -> list:
     """Extract top performers from box score."""
+
+    # Build player ID to team name mapping from box score
+    teams = box.get("teams", {})
+    away_name = teams.get("away", {}).get("team", {}).get("name", "")
+    home_name = teams.get("home", {}).get("team", {}).get("name", "")
+
+    away_player_ids = set(
+        teams.get("away", {}).get("batters", []) +
+        teams.get("away", {}).get("pitchers", [])
+    )
+    home_player_ids = set(
+        teams.get("home", {}).get("batters", []) +
+        teams.get("home", {}).get("pitchers", [])
+    )
+
     performers = []
     for p in box.get("topPerformers", []):
         player = p.get("player", {})
         person = player.get("person", {})
-        team = player.get("currentTeam", {})
+        player_id = person.get("id", 0)
+
+        # Resolve team name from box score player lists
+        if player_id in away_player_ids:
+            team_name = away_name
+        elif player_id in home_player_ids:
+            team_name = home_name
+        else:
+            team_name = ""
+
         performers.append({
             "name": person.get("fullName", "Unknown"),
-            "team": team.get("name", ""),
+            "team": team_name,
             "type": p.get("type", ""),
         })
+
     return performers
 
 

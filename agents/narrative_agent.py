@@ -14,18 +14,38 @@ client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 def extract_key_storylines(
     match_analysis: str,
-    player_analysis: str
+    player_analysis: str,
+    sport: str = "nba"
 ) -> str:
     """
     Extract the most important elements from both analyses.
-    We summarize to avoid sending too many tokens to the Narrative Agent.
+    Token limits are sport-aware — data-rich sports get more context.
     """
 
-    # Take first 800 chars of match analysis - covers overview and key turning points
-    match_summary = match_analysis[:800]
+    # Sport-aware token limits
+    # MLB and F1 have rich structured data that needs more context
+    # NBA has dense player stats that benefit from longer player summary
+    match_limits = {
+        "mlb": 1500,
+        "f1": 1500,
+        "soccer": 1200,
+        "nba": 800,
+        "valorant": 800,
+    }
+    player_limits = {
+        "mlb": 1200,
+        "f1": 1200,
+        "soccer": 800,
+        "nba": 1000,
+        "valorant": 800,
+    }
 
-    # Take first 1000 chars of player analysis - covers top performers
-    player_summary = player_analysis[:1000]
+    sport_lower = sport.lower()
+    match_limit = match_limits.get(sport_lower, 800)
+    player_limit = player_limits.get(sport_lower, 1000)
+
+    match_summary = match_analysis[:match_limit]
+    player_summary = player_analysis[:player_limit]
 
     return f"""=== MATCH CONTEXT ===
 {match_summary}
@@ -201,7 +221,7 @@ def narrative_node(state: SportsCastState) -> dict:
 
     try:
         print(f"Generating narrative in '{persona_key}' style...")
-        storylines = extract_key_storylines(match_analysis, player_analysis)
+        storylines = extract_key_storylines(match_analysis, player_analysis, sport.lower())
         narrative = generate_narrative(storylines, sport, persona_key)
 
         log_agent_complete("NarrativeAgent", start_time)
