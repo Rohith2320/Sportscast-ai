@@ -137,12 +137,21 @@ def list_cached_games(sport: str = None) -> list[dict]:
         if sport and cache_data.get("sport") != sport:
             continue
 
+        # Extract human-readable title from match analysis
+        match_analysis = cache_data["state"].get("match_analysis", "") or ""
+        title = ""
+        for line in match_analysis.split("\n"):
+            if line.startswith("# "):
+                title = line[2:].strip()
+                break
+
         cached.append({
             "game_id": cache_data["game_id"],
             "sport": cache_data["sport"],
             "cached_at": cache_data["cached_at"],
             "match_id": cache_data["state"].get("match_id"),
             "has_narrative": bool(cache_data["state"].get("narrative")),
+            "title": title,
         })
 
     cached.sort(key=lambda x: x["cached_at"], reverse=True)
