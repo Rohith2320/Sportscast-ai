@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Helmet } from 'react-helmet-async'
 import { SPORTS } from '../config'
 import { getCachedGames, startAnalysis, getHealth, discoverLatest } from '../api'
+import { useWindowSize } from '../hooks/useWindowSize'
 
 export default function Home() {
   const navigate = useNavigate()
@@ -26,6 +28,8 @@ export default function Home() {
   })
 
   const sport = SPORTS[selectedSport]
+  const { isMobile } = useWindowSize()
+  const handleAnalyzeRef = useRef(null)
 
   // Health check: poll every 15s, show banner after 2 consecutive failures, auto-dismiss on recovery
   useEffect(() => {
@@ -99,6 +103,21 @@ export default function Home() {
       setLoading(false)
     }
   }
+
+  // Keep ref current so keyboard shortcut always calls the latest closure
+  handleAnalyzeRef.current = handleAnalyze
+
+  // Cmd+Enter / Ctrl+Enter triggers analyze from anywhere on the page
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault()
+        handleAnalyzeRef.current?.()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const handleViewGame = (game) => {
     const safeId = game.game_id.replace(/\//g, '_')
@@ -181,6 +200,14 @@ export default function Home() {
   }
 
   return (
+    <>
+      <Helmet>
+        <title>SportsCast AI — Multi-Agent Sports Analysis</title>
+        <meta name="description" content="AI-powered broadcast-quality sports analysis. NBA, F1, MLB, Soccer, and Valorant powered by a 5-agent LangGraph pipeline." />
+        <meta property="og:title" content="SportsCast AI — Multi-Agent Sports Analysis" />
+        <meta property="og:description" content="Broadcast-quality sports analysis powered by Claude Opus 4 and a multi-agent AI pipeline." />
+        <meta property="og:type" content="website" />
+      </Helmet>
     <motion.div
       style={{ minHeight: '100vh', backgroundColor: '#0A0A0A' }}
       initial={{ opacity: 0 }}
@@ -199,7 +226,7 @@ export default function Home() {
             style={{
               backgroundColor: '#150808',
               borderBottom: '1px solid #3A1010',
-              padding: '8px 40px',
+              padding: isMobile ? '8px 16px' : '8px 40px',
               textAlign: 'center',
             }}
           >
@@ -214,24 +241,26 @@ export default function Home() {
       <div style={{
         borderBottom: '1px solid #1A1A1A',
         backgroundColor: '#0D0D0D',
-        padding: '0 40px',
+        padding: isMobile ? '0 16px' : '0 40px',
         borderTop: `2px solid ${sport.color}`,
         background: `radial-gradient(ellipse at top left, ${sport.color}08 0%, transparent 60%), #0D0D0D`,
         transition: 'border-top-color 0.4s, background 0.4s',
       }}>
         <div style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: isMobile ? 'flex-start' : 'center',
+          flexDirection: isMobile ? 'column' : 'row',
           justifyContent: 'space-between',
           paddingTop: '28px',
           paddingBottom: '20px',
           maxWidth: '1400px',
           margin: '0 auto',
+          gap: isMobile ? '8px' : '0',
         }}>
           <div>
             <h1 style={{
               fontFamily: 'Bebas Neue, sans-serif',
-              fontSize: '60px',
+              fontSize: isMobile ? '36px' : '60px',
               lineHeight: 1,
               letterSpacing: '3px',
               color: '#FFFFFF',
@@ -246,9 +275,10 @@ export default function Home() {
               textTransform: 'uppercase',
               marginTop: '6px',
             }}>
-              Multi-Agent Sports Analysis · Claude Sonnet & GPT-4o-mini
+              Multi-Agent Sports Analysis · Claude Opus 4 · GPT-4o-mini
             </p>
           </div>
+          {!isMobile && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '10px', color: '#333', letterSpacing: '2px', textTransform: 'uppercase' }}>Active Sport</div>
@@ -261,12 +291,15 @@ export default function Home() {
               backgroundColor: '#22C55E', boxShadow: '0 0 8px #22C55E',
             }} />
           </div>
+          )}
         </div>
 
         {/* Sport selector */}
         <div style={{
           display: 'flex', gap: '8px', paddingBottom: '16px',
           maxWidth: '1400px', margin: '0 auto',
+          overflowX: 'auto', flexWrap: 'nowrap',
+          WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
         }}>
           {Object.entries(SPORTS).map(([key, config]) => {
             const isActive = key === selectedSport
@@ -289,6 +322,8 @@ export default function Home() {
                   cursor: 'pointer',
                   fontFamily: 'Inter, sans-serif',
                   transition: 'color 0.2s',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {config.icon} {config.label}
@@ -301,8 +336,11 @@ export default function Home() {
       {/* ── MAIN CONTENT ── */}
       <div style={{
         maxWidth: '1400px', margin: '0 auto',
-        padding: '40px', display: 'grid',
-        gridTemplateColumns: '1fr 380px', gap: '40px', alignItems: 'start',
+        padding: isMobile ? '24px 16px' : '40px',
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : '1fr 380px',
+        gap: isMobile ? '32px' : '40px',
+        alignItems: 'start',
       }}>
 
         {/* ── LEFT: Games List ── */}
@@ -654,7 +692,7 @@ export default function Home() {
         </div>
 
         {/* ── RIGHT: New Analysis Panel ── */}
-        <div style={{ position: 'sticky', top: '40px' }}>
+        <div style={{ position: isMobile ? 'static' : 'sticky', top: '40px' }}>
           <div style={{
             fontSize: '11px', fontWeight: 700,
             letterSpacing: '3px', textTransform: 'uppercase',
@@ -807,7 +845,7 @@ export default function Home() {
       {/* ── ABOUT FOOTER ── */}
       <div style={{
         borderTop: '1px solid #111',
-        padding: '32px 40px',
+        padding: isMobile ? '24px 16px' : '32px 40px',
         marginTop: '0',
       }}>
         <p style={{
@@ -818,9 +856,10 @@ export default function Home() {
           <span style={{ color: '#444', fontWeight: 600 }}>SportsCast AI</span> is a multi-agent sports analysis system.
           Unlike data lookup tools, it uses a 5-agent LangGraph pipeline (fetch, match analysis, player analysis,
           enrichment, and narrative) to generate original broadcast-quality analysis from live match data.
-          Built with LangGraph, Claude Sonnet 4, GPT-4o-mini, FastAPI, and React.
+          Built with LangGraph, Claude Opus 4, GPT-4o-mini, FastAPI, and React.
         </p>
       </div>
     </motion.div>
+    </>
   )
 }

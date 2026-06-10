@@ -186,7 +186,7 @@ Writing style requirements:
 - Every paragraph must contain at least two specific statistics from the data."""
 
     message = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-opus-4-8",
         max_tokens=1200,
         messages=[
             {"role": "user", "content": prompt}
