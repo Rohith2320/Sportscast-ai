@@ -11,3 +11,5 @@ nba-api
 pydantic
 anthropic
 pytz
+fastmcp
+mem0ai

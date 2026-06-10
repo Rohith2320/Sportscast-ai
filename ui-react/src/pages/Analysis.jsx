@@ -253,10 +253,11 @@ export default function Analysis() {
 
   const chatMsgCount = Math.floor(chatHistory.length / 2)
   const tabs = [
-    { key: 'narrative', label: 'Narrative' },
-    { key: 'match',     label: 'Match Analysis' },
-    { key: 'player',    label: 'Player Analysis' },
-    { key: 'chat',      label: 'Chat', badge: chatMsgCount > 0 ? chatMsgCount : null },
+    { key: 'narrative',      label: 'Narrative' },
+    { key: 'match',          label: 'Match Analysis' },
+    { key: 'player',         label: 'Player Analysis' },
+    { key: 'visualization',  label: 'Visualization' },
+    { key: 'chat',           label: 'Chat', badge: chatMsgCount > 0 ? chatMsgCount : null },
   ]
 
   if (loading) {
@@ -413,7 +414,7 @@ export default function Analysis() {
                 }}>
                   {pageTitle}
                 </h1>
-                <div style={{ fontSize: '11px', color: '#444', marginTop: '5px', letterSpacing: '0.5px' }}>
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '5px', letterSpacing: '0.5px' }}>
                   {pageSubtitle}
                 </div>
               </div>
@@ -532,7 +533,7 @@ export default function Analysis() {
                       <div>Narrative <span style={{ color: '#444', float: 'right' }}>claude-opus-4-8</span></div>
                       <div>Chat <span style={{ color: '#444', float: 'right' }}>gpt-4o-mini</span></div>
                     </div>
-                    <div style={{ fontSize: '10px', color: '#333', marginTop: '12px', borderTop: '1px solid #1A1A1A', paddingTop: '10px' }}>
+                    <div style={{ fontSize: '10px', color: '#666', marginTop: '12px', borderTop: '1px solid #1A1A1A', paddingTop: '10px' }}>
                       Chat responses billed separately per message.
                     </div>
                   </motion.div>
@@ -584,7 +585,7 @@ export default function Analysis() {
             textAlign: 'center',
           }}>
             <div style={{
-              fontSize: '9px', color: '#444', letterSpacing: '2px',
+              fontSize: '9px', color: '#666', letterSpacing: '2px',
               textTransform: 'uppercase', marginBottom: '4px',
             }}>
               {sport === 'f1' ? 'RACE RESULT' : 'FINAL SCORE'}
@@ -610,11 +611,11 @@ export default function Analysis() {
             display: 'flex', gap: isMobile ? '20px' : '40px', alignItems: 'center',
           }}>
             <div>
-              <div style={{ fontSize: '8px', color: '#333', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '2px' }}>SPORT</div>
+              <div style={{ fontSize: '8px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '2px' }}>SPORT</div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: sportConfig.color }}>{sportConfig.label}</div>
             </div>
             <div>
-              <div style={{ fontSize: '8px', color: '#333', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '2px' }}>
+              <div style={{ fontSize: '8px', color: '#555', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '2px' }}>
                 {cost !== null && cost > 0 ? 'FRESH' : 'CACHED'}
               </div>
               <div style={{ fontSize: '13px', fontWeight: 600, color: cost !== null && cost > 0 ? '#F59E0B' : '#22C55E' }}>
@@ -652,14 +653,14 @@ export default function Analysis() {
                     letterSpacing: '1px', textTransform: 'uppercase',
                     border: 'none', borderBottom: `2px solid ${isActive ? sportConfig.color : 'transparent'}`,
                     backgroundColor: isActive ? `${sportConfig.color}26` : 'transparent',
-                    color: isActive ? sportConfig.color : '#444',
+                    color: isActive ? sportConfig.color : '#666',
                     cursor: 'pointer', transition: 'color 0.2s, background-color 0.2s, border-color 0.2s',
                     fontFamily: 'Inter, sans-serif', marginBottom: '-1px',
                     borderRadius: '6px 6px 0 0', whiteSpace: 'nowrap',
                     display: 'flex', alignItems: 'center', gap: '6px',
                   }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#888' }}
-                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#444' }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#AAA' }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#666' }}
                 >
                   {tab.label}
                   {tab.badge && (
@@ -884,6 +885,20 @@ export default function Analysis() {
               </motion.div>
             )}
 
+            {/* ── VISUALIZATION TAB ── */}
+            {activeTab === 'visualization' && (
+              <motion.div
+                key="visualization"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                style={{ maxWidth: '860px', margin: '0 auto' }}
+              >
+                <SportVisualization sport={sport} result={result} sportConfig={sportConfig} isMobile={isMobile} />
+              </motion.div>
+            )}
+
             {/* ── CHAT TAB ── */}
             {activeTab === 'chat' && (
               <motion.div
@@ -1038,5 +1053,463 @@ export default function Analysis() {
         </div>
       </motion.div>
     </>
+  )
+}
+
+// ─────────────────────────────────────────────
+// SPORT VISUALIZATION COMPONENTS
+// ─────────────────────────────────────────────
+
+function VisTooltip({ text }) {
+  const [show, setShow] = useState(false)
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <span
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        style={{
+          fontSize: '11px', color: '#555', cursor: 'help',
+          border: '1px solid #333', borderRadius: '50%',
+          width: '18px', height: '18px', display: 'inline-flex',
+          alignItems: 'center', justifyContent: 'center',
+          userSelect: 'none',
+        }}
+      >?</span>
+      {show && (
+        <div style={{
+          position: 'absolute', bottom: '24px', left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: '#111', border: '1px solid #333',
+          borderRadius: '8px', padding: '10px 14px',
+          fontSize: '11px', color: '#AAA', whiteSpace: 'nowrap',
+          zIndex: 50, boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+          minWidth: '200px', maxWidth: '260px',
+          whiteSpace: 'normal', lineHeight: 1.6,
+        }}>
+          {text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function VisHeader({ title, tooltip, color }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
+      <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', color }}>
+        {title}
+      </div>
+      <VisTooltip text={tooltip} />
+    </div>
+  )
+}
+
+function NoDataPlaceholder({ sport, color }) {
+  return (
+    <div style={{
+      border: '1px dashed #333', borderRadius: '12px',
+      padding: '48px 32px', textAlign: 'center',
+    }}>
+      <div style={{ fontSize: '32px', marginBottom: '12px' }}>📊</div>
+      <div style={{ fontSize: '13px', color: '#666', lineHeight: 1.7 }}>
+        Visualization requires fresh analysis data.
+        <br />
+        <span style={{ color, fontSize: '11px' }}>Run a fresh {sport.toUpperCase()} analysis to see this visualization.</span>
+      </div>
+    </div>
+  )
+}
+
+// NBA SHOT CHART
+function NBAViz({ result, color }) {
+  const raw = result?.raw_match_data || {}
+  const players = raw.players || raw.home_players || raw.away_players || []
+  const allPlayers = [
+    ...(raw.home_players || []),
+    ...(raw.away_players || []),
+    ...(raw.players || []),
+  ]
+
+  if (allPlayers.length === 0) {
+    return <NoDataPlaceholder sport="NBA" color={color} />
+  }
+
+  const COURT_W = 500
+  const COURT_H = 300
+
+  const shotZones = []
+  allPlayers.forEach(p => {
+    const fg3m = parseInt(p.fg3m || p.FG3M || 0, 10)
+    const fgm = parseInt(p.fgm || p.FGM || 0, 10)
+    const layups = Math.max(0, fgm - fg3m - Math.floor(fgm * 0.3))
+    const midrange = Math.floor(fgm * 0.3)
+
+    for (let i = 0; i < fg3m && i < 3; i++) {
+      const angle = (Math.random() * 160 + 10) * (Math.PI / 180)
+      const dist = 200 + Math.random() * 40
+      shotZones.push({ x: COURT_W / 2 + Math.cos(angle) * dist, y: COURT_H - 80 + Math.sin(angle) * 60, type: '3pt' })
+    }
+    for (let i = 0; i < midrange && i < 2; i++) {
+      shotZones.push({
+        x: 120 + Math.random() * 260, y: 80 + Math.random() * 100, type: 'mid',
+      })
+    }
+    for (let i = 0; i < layups && i < 2; i++) {
+      shotZones.push({ x: 220 + Math.random() * 60, y: COURT_H - 30 + Math.random() * 20, type: 'layup' })
+    }
+  })
+
+  const dotColor = { '3pt': color, 'mid': '#FFFFFF80', 'layup': '#FFFFFF' }
+
+  return (
+    <div>
+      <VisHeader title="Shot Distribution" color={color}
+        tooltip="Each dot represents an estimated shot based on player FGM and FG3M stats. 3-pointers shown in sport color, layups white, mid-range gray." />
+      <div style={{ overflowX: 'auto' }}>
+        <svg width={COURT_W} height={COURT_H} style={{ background: '#0D0D0D', borderRadius: '12px', maxWidth: '100%' }}>
+          {/* Court outline */}
+          <rect x={20} y={20} width={COURT_W - 40} height={COURT_H - 40} rx={8} fill="none" stroke="#222" strokeWidth={1} />
+          {/* Paint */}
+          <rect x={185} y={COURT_H - 60} width={130} height={80} fill="none" stroke="#1A1A1A" strokeWidth={1} />
+          {/* 3-point arc approx */}
+          <path d={`M 80 ${COURT_H} Q ${COURT_W / 2} 30 ${COURT_W - 80} ${COURT_H}`} fill="none" stroke="#1A1A1A" strokeWidth={1} />
+          {/* Basket */}
+          <circle cx={COURT_W / 2} cy={COURT_H - 20} r={6} fill="none" stroke="#333" strokeWidth={1.5} />
+
+          {/* Shot dots */}
+          {shotZones.map((dot, i) => (
+            <motion.circle
+              key={i}
+              cx={dot.x}
+              cy={dot.y}
+              r={5}
+              fill={dotColor[dot.type]}
+              opacity={0}
+              animate={{ opacity: 0.75 }}
+              transition={{ delay: i * 0.06, duration: 0.4 }}
+            />
+          ))}
+        </svg>
+      </div>
+      <div style={{ display: 'flex', gap: '16px', marginTop: '12px', flexWrap: 'wrap' }}>
+        {[['3pt', color, '3-Pointers'], ['mid', '#FFFFFF80', 'Mid-Range'], ['layup', '#FFFFFF', 'Layups/Paint']].map(([k, c, lbl]) => (
+          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: c }} />
+            <span style={{ fontSize: '11px', color: '#666' }}>{lbl}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// F1 POSITION TIMELINE
+function F1Viz({ result, color }) {
+  const raw = result?.raw_match_data || {}
+  const qualResults = raw.qualifying_results || raw.grid || []
+  const raceResults = raw.race_results || raw.results || []
+
+  if (raceResults.length === 0) {
+    return <NoDataPlaceholder sport="F1" color={color} />
+  }
+
+  const drivers = raceResults.slice(0, 10).map((r, i) => {
+    const name = r.driver || r.name || r.Driver?.familyName || `P${i + 1}`
+    const shortName = name.length > 8 ? name.slice(0, 8) : name
+    const startPos = (() => {
+      const q = qualResults.find(q =>
+        (q.driver || q.Driver?.familyName || '').toLowerCase().includes(name.toLowerCase().slice(0, 4))
+      )
+      return q ? parseInt(q.position || q.Position || i + 1, 10) : i + 1
+    })()
+    const endPos = parseInt(r.position || r.Position || i + 1, 10)
+    return { name: shortName, startPos, endPos }
+  })
+
+  const W = 500, H = 280, PAD = 60, INNER_W = W - PAD * 2
+  const numDrivers = drivers.length
+  const rowH = (H - 40) / numDrivers
+
+  const yFromPos = (pos) => 20 + (pos - 1) * rowH
+
+  const COLORS = ['#E8002D', '#FF6B35', '#F59E0B', '#22C55E', '#3B82F6', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16', '#F97316']
+
+  return (
+    <div>
+      <VisHeader title="Race Position Change" color={color}
+        tooltip="Each line shows a driver's position change from qualifying (left) to race finish (right). Lines crossing = overtakes occurred." />
+      <div style={{ overflowX: 'auto' }}>
+        <svg width={W} height={H} style={{ background: '#0D0D0D', borderRadius: '12px', maxWidth: '100%' }}>
+          {/* Grid lines */}
+          {drivers.map((_, i) => (
+            <line key={i} x1={PAD} y1={20 + i * rowH + rowH / 2} x2={W - PAD} y2={20 + i * rowH + rowH / 2} stroke="#111" strokeWidth={1} />
+          ))}
+
+          {/* Qualifying label */}
+          <text x={PAD} y={14} fontSize={9} fill="#555" textAnchor="middle">QUALIFYING</text>
+          <text x={W - PAD} y={14} fontSize={9} fill="#555" textAnchor="middle">FINISH</text>
+
+          {/* Driver paths */}
+          {drivers.map((d, i) => {
+            const x1 = PAD, y1 = yFromPos(d.startPos) + rowH / 2
+            const x2 = W - PAD, y2 = yFromPos(d.endPos) + rowH / 2
+            const driverColor = COLORS[i % COLORS.length]
+            return (
+              <g key={i}>
+                <motion.path
+                  d={`M ${x1} ${y1} C ${x1 + INNER_W / 3} ${y1}, ${x2 - INNER_W / 3} ${y2}, ${x2} ${y2}`}
+                  fill="none"
+                  stroke={driverColor}
+                  strokeWidth={1.5}
+                  opacity={0}
+                  animate={{ opacity: 0.7 }}
+                  transition={{ delay: i * 0.08, duration: 0.5 }}
+                />
+                <motion.circle cx={x1} cy={y1} r={4} fill={driverColor} opacity={0} animate={{ opacity: 1 }} transition={{ delay: i * 0.08 }} />
+                <motion.circle cx={x2} cy={y2} r={4} fill={driverColor} opacity={0} animate={{ opacity: 1 }} transition={{ delay: i * 0.08 + 0.3 }} />
+                <text x={x2 + 6} y={y2 + 4} fontSize={9} fill={driverColor}>{d.name}</text>
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+// SOCCER INCIDENT TIMELINE
+function SoccerViz({ result, color }) {
+  const raw = result?.raw_match_data || {}
+  const incidents = raw.incidents || raw.events || raw.goals_and_cards || []
+
+  if (incidents.length === 0) {
+    return <NoDataPlaceholder sport="Soccer" color={color} />
+  }
+
+  const filtered = incidents.filter(e => e.minute !== undefined || e.time !== undefined).slice(0, 20)
+
+  if (filtered.length === 0) {
+    return <NoDataPlaceholder sport="Soccer" color={color} />
+  }
+
+  const W = 480, H = Math.max(300, filtered.length * 40 + 60)
+  const timelineX = 60, markerX = 60
+
+  const getIcon = (type) => {
+    const t = (type || '').toLowerCase()
+    if (t.includes('goal') || t.includes('score')) return '⚽'
+    if (t.includes('yellow')) return '🟨'
+    if (t.includes('red')) return '🟥'
+    if (t.includes('sub')) return '🔄'
+    return '•'
+  }
+
+  return (
+    <div>
+      <VisHeader title="Match Timeline" color={color}
+        tooltip="Events plotted at their match minute. ⚽ = Goal, 🟨 = Yellow card, 🟥 = Red card, 🔄 = Substitution." />
+      <div style={{ overflowX: 'auto' }}>
+        <svg width={W} height={H} style={{ background: '#0D0D0D', borderRadius: '12px', maxWidth: '100%' }}>
+          {/* Vertical timeline line */}
+          <line x1={timelineX} y1={30} x2={timelineX} y2={H - 20} stroke="#222" strokeWidth={1.5} />
+
+          {filtered.map((ev, i) => {
+            const minute = ev.minute || ev.time || 0
+            const label = `${minute}'`
+            const team = ev.team || ev.side || ''
+            const player = ev.player || ev.name || ''
+            const type = ev.type || ev.event_type || 'goal'
+            const icon = getIcon(type)
+            const y = 40 + i * 36
+            const isHome = (team || '').toLowerCase().includes('home') || i % 2 === 0
+
+            return (
+              <motion.g key={i} opacity={0} animate={{ opacity: 1 }} transition={{ delay: i * 0.07, duration: 0.4 }}>
+                <circle cx={timelineX} cy={y} r={5} fill={color} />
+                <text x={timelineX - 10} y={y + 4} fontSize={10} fill="#888" textAnchor="end">{label}</text>
+                <text x={timelineX + 12} y={y + 4} fontSize={14} textAnchor="start">{icon}</text>
+                <text x={timelineX + 30} y={y + 4} fontSize={10} fill="#CCC" textAnchor="start">
+                  {player.slice(0, 20)}{team ? ` · ${team.slice(0, 12)}` : ''}
+                </text>
+              </motion.g>
+            )
+          })}
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+// MLB LINESCORE BAR CHART
+function MLBViz({ result, color }) {
+  const raw = result?.raw_match_data || {}
+  const linescore = raw.linescore || raw.innings || []
+  const homeTeam = raw.home_team || raw.home || 'Home'
+  const awayTeam = raw.away_team || raw.away || 'Away'
+
+  if (linescore.length === 0) {
+    return <NoDataPlaceholder sport="MLB" color={color} />
+  }
+
+  const innings = linescore.slice(0, 9)
+  const maxRuns = Math.max(1, ...innings.map(i => Math.max(
+    parseInt(i.home || i.home_runs || i.H || 0, 10),
+    parseInt(i.away || i.away_runs || i.A || 0, 10),
+  )))
+
+  const W = 480, H = 200, PAD_L = 30, PAD_B = 40
+  const chartH = H - PAD_B - 20
+  const chartW = W - PAD_L - 20
+  const barGroupW = chartW / innings.length
+  const barW = Math.max(4, barGroupW * 0.35)
+
+  return (
+    <div>
+      <VisHeader title="Runs Per Inning" color={color}
+        tooltip="Side-by-side bars show runs scored by each team in each inning. Momentum swings are visible as the lead changes." />
+      <div style={{ overflowX: 'auto' }}>
+        <svg width={W} height={H} style={{ background: '#0D0D0D', borderRadius: '12px', maxWidth: '100%' }}>
+          {/* Inning labels */}
+          {innings.map((_, i) => (
+            <text key={i} x={PAD_L + i * barGroupW + barGroupW / 2} y={H - 8} fontSize={9} fill="#555" textAnchor="middle">
+              {i + 1}
+            </text>
+          ))}
+          <text x={PAD_L + innings.length * barGroupW / 2} y={H} fontSize={8} fill="#444" textAnchor="middle">INNING</text>
+
+          {innings.map((inn, i) => {
+            const homeRuns = parseInt(inn.home || inn.home_runs || inn.H || 0, 10)
+            const awayRuns = parseInt(inn.away || inn.away_runs || inn.A || 0, 10)
+            const homeH = homeRuns > 0 ? Math.max(4, (homeRuns / maxRuns) * chartH) : 0
+            const awayH = awayRuns > 0 ? Math.max(4, (awayRuns / maxRuns) * chartH) : 0
+            const x = PAD_L + i * barGroupW + (barGroupW - barW * 2 - 2) / 2
+
+            return (
+              <g key={i}>
+                <motion.rect
+                  x={x} y={H - PAD_B - homeH} width={barW} height={0}
+                  fill={color} rx={2}
+                  animate={{ height: homeH, y: H - PAD_B - homeH }}
+                  transition={{ delay: i * 0.08, duration: 0.5, ease: 'easeOut' }}
+                />
+                <motion.rect
+                  x={x + barW + 2} y={H - PAD_B - awayH} width={barW} height={0}
+                  fill="#FFFFFF40" rx={2}
+                  animate={{ height: awayH, y: H - PAD_B - awayH }}
+                  transition={{ delay: i * 0.08 + 0.05, duration: 0.5, ease: 'easeOut' }}
+                />
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+      <div style={{ display: 'flex', gap: '16px', marginTop: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: color }} />
+          <span style={{ fontSize: '11px', color: '#666' }}>{homeTeam} (Home)</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: '#FFFFFF40' }} />
+          <span style={{ fontSize: '11px', color: '#666' }}>{awayTeam} (Away)</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// VALORANT ROUND TIMELINE
+function ValorantViz({ result, color }) {
+  const raw = result?.raw_match_data || {}
+  const rounds = raw.rounds || raw.round_results || raw.score_progression || []
+  const team1 = raw.team1 || raw.teams?.[0]?.name || 'Team A'
+  const team2 = raw.team2 || raw.teams?.[1]?.name || 'Team B'
+
+  if (rounds.length === 0) {
+    return <NoDataPlaceholder sport="Valorant" color={color} />
+  }
+
+  const W = 500, H = 200, PAD = 40
+  const chartW = W - PAD * 2, chartH = H - PAD * 2
+  const totalRounds = rounds.length
+
+  let t1Score = 0, t2Score = 0
+  const points = rounds.map((r, i) => {
+    const winner = r.winner || r.winning_team || (i % 2 === 0 ? 't1' : 't2')
+    if (winner === 't1' || winner === team1 || winner === '1') t1Score++
+    else t2Score++
+    return { i, t1: t1Score, t2: t2Score }
+  })
+
+  const maxScore = Math.max(...points.map(p => Math.max(p.t1, p.t2)), 1)
+
+  const toX = (i) => PAD + (i / (totalRounds - 1 || 1)) * chartW
+  const toY = (score) => PAD + chartH - (score / maxScore) * chartH
+
+  const path1 = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toY(p.t1)}`).join(' ')
+  const path2 = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toY(p.t2)}`).join(' ')
+
+  const halftimeX = totalRounds >= 24 ? toX(11) : toX(Math.floor(totalRounds / 2))
+
+  return (
+    <div>
+      <VisHeader title="Round Score Progression" color={color}
+        tooltip="Line chart of cumulative score per team across all rounds. The dashed vertical line marks the halftime map switch." />
+      <div style={{ overflowX: 'auto' }}>
+        <svg width={W} height={H} style={{ background: '#0D0D0D', borderRadius: '12px', maxWidth: '100%' }}>
+          {/* Halftime line */}
+          <line x1={halftimeX} y1={PAD} x2={halftimeX} y2={H - PAD} stroke="#333" strokeWidth={1} strokeDasharray="4 3" />
+          <text x={halftimeX} y={PAD - 5} fontSize={8} fill="#444" textAnchor="middle">HALF</text>
+
+          {/* Team 2 line */}
+          <motion.path d={path2} fill="none" stroke="#FFFFFF40" strokeWidth={1.5}
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, ease: 'easeOut' }} />
+
+          {/* Team 1 line */}
+          <motion.path d={path1} fill="none" stroke={color} strokeWidth={2}
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, ease: 'easeOut' }} />
+
+          {/* Current scores */}
+          {points.length > 0 && (
+            <>
+              <circle cx={toX(points.length - 1)} cy={toY(points[points.length - 1].t1)} r={4} fill={color} />
+              <circle cx={toX(points.length - 1)} cy={toY(points[points.length - 1].t2)} r={4} fill="#FFFFFF40" />
+            </>
+          )}
+        </svg>
+      </div>
+      <div style={{ display: 'flex', gap: '16px', marginTop: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '10px', height: '3px', backgroundColor: color, borderRadius: '1px' }} />
+          <span style={{ fontSize: '11px', color: '#666' }}>{team1}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ width: '10px', height: '3px', backgroundColor: '#FFFFFF40', borderRadius: '1px' }} />
+          <span style={{ fontSize: '11px', color: '#666' }}>{team2}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SportVisualization({ sport, result, sportConfig, isMobile }) {
+  const color = sportConfig.color
+
+  return (
+    <div>
+      <div style={{ marginBottom: '32px' }}>
+        <div style={{ fontSize: '10px', color: '#666', letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '6px' }}>
+          {sportConfig.icon} {sportConfig.label} Data Visualization
+        </div>
+        <div style={{ fontSize: '12px', color: '#555', lineHeight: 1.6 }}>
+          Built from cached analysis data. No additional API calls.
+        </div>
+      </div>
+
+      {sport === 'nba' && <NBAViz result={result} color={color} />}
+      {sport === 'f1' && <F1Viz result={result} color={color} />}
+      {sport === 'soccer' && <SoccerViz result={result} color={color} />}
+      {sport === 'mlb' && <MLBViz result={result} color={color} />}
+      {sport === 'valorant' && <ValorantViz result={result} color={color} />}
+    </div>
   )
 }

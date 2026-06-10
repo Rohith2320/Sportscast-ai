@@ -118,8 +118,9 @@ export default function Loading() {
             .then(fullJob => {
               setJob(fullJob)
               setTimeout(() => {
-                const gameId = fullJob.result?.match_id || ''
-                navigate(`/analysis/${sport}/${gameId}`, { state: { jobData: fullJob } })
+                const rawId = fullJob.result?.match_id || ''
+                const safeGameId = rawId.replace(/\//g, '_')
+                navigate(`/analysis/${sport}/${safeGameId}`, { state: { jobData: fullJob } })
               }, 800)
             })
             .catch(() => navigate('/'))
@@ -209,7 +210,7 @@ export default function Loading() {
             {!isFailed && (
               <p style={{
                 fontSize: isMobile ? '12px' : '13px',
-                color: '#444', marginTop: '12px', letterSpacing: '1px',
+                color: '#888', marginTop: '12px', letterSpacing: '1px',
               }}>
                 {isComplete
                   ? 'Redirecting to your analysis...'
@@ -326,7 +327,7 @@ export default function Loading() {
                     paddingTop: '16px',
                     borderTop: '1px solid #111',
                     fontSize: '12px',
-                    color: '#555',
+                    color: '#888',
                     textAlign: 'center',
                     letterSpacing: '0.5px',
                   }}
@@ -335,7 +336,7 @@ export default function Loading() {
                     ? (SPORT_FETCH_MSG[sport] || SPORT_FETCH_MSG.nba)
                     : AGENT_STEPS[currentStepIndex]?.label}
                   {currentStepIndex > 0 && (
-                    <span style={{ color: '#333', marginLeft: '8px' }}>
+                    <span style={{ color: '#555', marginLeft: '8px' }}>
                       · Agent <span style={{ color: sportConfig.color }}>{currentStepIndex}/{AGENT_STEPS.length}</span> complete
                     </span>
                   )}
@@ -386,7 +387,7 @@ export default function Loading() {
                     {humanError.message}
                   </p>
                   <div style={{ marginBottom: '8px' }}>
-                    <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '10px', color: '#666', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
                       Try these instead
                     </div>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -449,7 +450,7 @@ export default function Loading() {
               {job.progress.slice(-3).map((msg, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                   style={{
-                    fontSize: '11px', color: '#333', padding: '3px 0',
+                    fontSize: '11px', color: '#666', padding: '3px 0',
                     letterSpacing: '0.5px', fontFamily: 'monospace',
                   }}>
                   {msg}
@@ -464,12 +465,12 @@ export default function Loading() {
               <button
                 onClick={() => navigate('/')}
                 style={{
-                  background: 'none', border: 'none', color: '#333',
+                  background: 'none', border: 'none', color: '#555',
                   fontSize: '12px', cursor: 'pointer', letterSpacing: '1px',
                   padding: '8px 16px', transition: 'color 0.2s', fontFamily: 'Inter, sans-serif',
                 }}
-                onMouseEnter={e => e.target.style.color = '#666'}
-                onMouseLeave={e => e.target.style.color = '#333'}
+                onMouseEnter={e => e.target.style.color = '#888'}
+                onMouseLeave={e => e.target.style.color = '#555'}
               >
                 Cancel
               </button>

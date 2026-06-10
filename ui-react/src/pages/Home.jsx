@@ -436,6 +436,40 @@ export default function Home() {
 
           {/* ── LEFT — Game Cards ── */}
           <div>
+            {/* World Cup 2026 Banner — Soccer only */}
+            <AnimatePresence>
+              {selectedSport === 'soccer' && (
+                <motion.div
+                  key="wc-banner"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.3 }}
+                  style={{
+                    marginBottom: '20px',
+                    padding: '16px 20px',
+                    borderRadius: '12px',
+                    border: '1px solid #00D4AA',
+                    backgroundColor: 'rgba(0,212,170,0.06)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ fontSize: '28px', lineHeight: 1 }}>🏆</div>
+                  <div style={{ flex: 1, minWidth: '180px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#00D4AA', letterSpacing: '0.5px', marginBottom: '3px' }}>
+                      FIFA World Cup 2026 is LIVE
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#888', letterSpacing: '0.3px' }}>
+                      48 teams · USA, Canada, Mexico · Group stage underway
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div style={{
               display: 'flex', alignItems: 'center',
               justifyContent: 'space-between', marginBottom: '20px',
@@ -483,7 +517,7 @@ export default function Home() {
                       mlb: "Use 'latest' or a game ID like '824916'",
                     }[selectedSport]}
                   </p>
-                  <p style={{ color: '#333', fontSize: '12px', margin: 0 }}>
+                  <p style={{ color: '#666', fontSize: '12px', margin: 0 }}>
                     {selectedSport === 'nba'
                       ? 'NBA 2025-26 season has ended. Browse what is cached →'
                       : 'No cached analyses yet. Run your first analysis →'}
@@ -553,8 +587,8 @@ export default function Home() {
                             </div>
                           )}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '11px', color: '#333' }}>{formatMatchDate(game)}</span>
-                            <span style={{ fontSize: '10px', color: '#1A6A1A', fontWeight: 600 }}>● Cached</span>
+                            <span style={{ fontSize: '11px', color: '#666' }}>{formatMatchDate(game)}</span>
+                            <span style={{ fontSize: '10px', color: '#22C55E', fontWeight: 600 }}>● Cached</span>
                           </div>
                         </div>
 
@@ -587,7 +621,7 @@ export default function Home() {
             {recentGames.length > 0 && (
               <div style={{ marginTop: '32px' }}>
                 <div style={{
-                  fontSize: '9px', color: '#333', letterSpacing: '2px',
+                  fontSize: '9px', color: '#666', letterSpacing: '2px',
                   textTransform: 'uppercase', marginBottom: '12px',
                 }}>
                   Recently Viewed
@@ -645,7 +679,7 @@ export default function Home() {
         }}>
           <p style={{
             maxWidth: '760px', margin: '0 auto',
-            fontSize: '11px', color: '#2A2A2A', lineHeight: 1.8,
+            fontSize: '11px', color: '#555', lineHeight: 1.8,
             textAlign: 'center', letterSpacing: '0.5px',
           }}>
             Built with LangGraph, Claude Opus 4, GPT-4o-mini, FastAPI, and React.
@@ -727,7 +761,7 @@ function RightPanel({
           display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px',
         }}>
           <div style={{ flex: 1, height: '1px', backgroundColor: '#1A1A1A' }} />
-          <span style={{ fontSize: '10px', color: '#333', letterSpacing: '1px' }}>OR ENTER MANUALLY</span>
+          <span style={{ fontSize: '10px', color: '#555', letterSpacing: '1px' }}>OR ENTER MANUALLY</span>
           <div style={{ flex: 1, height: '1px', backgroundColor: '#1A1A1A' }} />
         </div>
 
@@ -749,7 +783,7 @@ function RightPanel({
             onFocus={e => e.target.style.borderColor = '#444'}
             onBlur={e => e.target.style.borderColor = '#2A2A2A'}
           />
-          <div style={{ fontSize: '10px', color: '#333', marginTop: '5px', letterSpacing: '0.5px' }}>
+          <div style={{ fontSize: '10px', color: '#888', marginTop: '5px', letterSpacing: '0.5px' }}>
             {SPORT_HINTS[selectedSport]}
           </div>
         </div>
@@ -813,7 +847,7 @@ function RightPanel({
         </motion.button>
 
         <div style={{
-          marginTop: '10px', fontSize: '10px', color: '#2A2A2A',
+          marginTop: '10px', fontSize: '10px', color: '#666',
           textAlign: 'center', letterSpacing: '0.5px',
         }}>
           Cmd+Enter to analyze
@@ -826,7 +860,7 @@ function RightPanel({
         border: '1px solid #1A1A1A', borderRadius: '12px', padding: '18px',
       }}>
         <div style={{
-          fontSize: '9px', color: '#2A2A2A', letterSpacing: '2px',
+          fontSize: '9px', color: '#666', letterSpacing: '2px',
           textTransform: 'uppercase', marginBottom: '12px',
         }}>
           All Sports
@@ -847,12 +881,12 @@ function RightPanel({
             <span style={{ fontSize: '14px' }}>{config.icon}</span>
             <span style={{
               fontSize: '12px', flex: 1,
-              color: selectedSport === key ? config.color : '#444',
+              color: selectedSport === key ? config.color : '#AAAAAA',
               fontWeight: selectedSport === key ? 600 : 400, transition: 'color 0.2s',
             }}>
               {config.label}
             </span>
-            <span style={{ fontSize: '10px', color: '#2A2A2A' }}>{config.desc}</span>
+            <span style={{ fontSize: '10px', color: '#555' }}>{config.desc}</span>
           </div>
         ))}
       </div>

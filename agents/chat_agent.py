@@ -11,6 +11,19 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+_mem0_client = None
+
+
+def _get_memory():
+    global _mem0_client
+    if _mem0_client is None and os.getenv('MEM0_ENABLED', 'false').lower() == 'true':
+        try:
+            from mem0 import Memory
+            _mem0_client = Memory()
+        except Exception:
+            pass
+    return _mem0_client
+
 
 # ─────────────────────────────────────────────
 # INTENT CLASSIFICATION
@@ -510,6 +523,18 @@ def chat_node(state: SportsCastState) -> dict:
             players_in_game=players_in_game
         )
 
+        # Retrieve persistent memories if Mem0 is enabled
+        memory = _get_memory()
+        if memory:
+            try:
+                results = memory.search(user_query, user_id="sportscast_user")
+                if results:
+                    mem_lines = [r.get('memory', '') for r in results if r.get('memory')]
+                    if mem_lines:
+                        context = f"User preferences and history: {' | '.join(mem_lines)}\n\n" + context
+            except Exception:
+                pass
+
         # Generate grounded response
         response = generate_chat_response(
             query=user_query,
@@ -526,6 +551,16 @@ def chat_node(state: SportsCastState) -> dict:
             {"role": "user", "content": user_query},
             {"role": "assistant", "content": response}
         ]
+
+        # Store exchange in Mem0 if enabled
+        if memory:
+            try:
+                memory.add(
+                    f"User asked: {user_query}. About: {sport} game.",
+                    user_id="sportscast_user"
+                )
+            except Exception:
+                pass
 
         log_agent_complete("ChatAgent", start_time)
 
