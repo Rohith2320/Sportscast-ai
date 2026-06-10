@@ -291,8 +291,11 @@ def soccer_fetch_node(state: SportsCastState) -> dict:
             try:
                 print("Fetching latest World Cup match...")
                 raw_data = fetch_latest_match("world_cup")
-            except Exception:
-                print("No World Cup matches yet, fetching Premier League...")
+                match_date = raw_data.get("date", "")
+                if match_date and match_date < "2025-01-01":
+                    raise ValueError(f"World Cup data is stale ({match_date}), falling back to Premier League")
+            except Exception as e:
+                print(f"World Cup not available ({e}), fetching Premier League...")
                 raw_data = fetch_latest_match("premier_league")
 
         elif str(match_id).isdigit():

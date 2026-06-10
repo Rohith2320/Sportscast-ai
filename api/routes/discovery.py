@@ -78,7 +78,7 @@ def _discover_soccer() -> dict:
         r = requests.get(
             "https://sports.bzzoiro.com/api/v2/events/",
             headers=headers,
-            params={"status": "finished", "limit": 1},
+            params={"status": "finished", "league_id": 1, "limit": 1},
             timeout=15,
         )
         r.raise_for_status()

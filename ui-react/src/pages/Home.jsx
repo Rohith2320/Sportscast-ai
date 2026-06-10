@@ -134,7 +134,7 @@ export default function Home() {
       const id = game.match_id || game.game_id
       if (game.sport === 'f1') {
         const parts = id.replace('_', '/').split('/')
-        return { title: parts.length === 2 ? `Round ${parts[1]} — ${parts[0]}` : id, score: null }
+        return { title: parts.length === 2 ? `Round ${parts[1]}: ${parts[0]}` : id, score: null }
       }
       return { title: id.replace(/_/g, ' '), score: null }
     }
@@ -816,8 +816,8 @@ export default function Home() {
           textAlign: 'center', letterSpacing: '0.3px',
         }}>
           <span style={{ color: '#444', fontWeight: 600 }}>SportsCast AI</span> is a multi-agent sports analysis system.
-          Unlike data lookup tools, it uses a 5-agent LangGraph pipeline — fetch, match analysis, player analysis,
-          enrichment, and narrative — to generate original broadcast-quality analysis from live match data.
+          Unlike data lookup tools, it uses a 5-agent LangGraph pipeline (fetch, match analysis, player analysis,
+          enrichment, and narrative) to generate original broadcast-quality analysis from live match data.
           Built with LangGraph, Claude Sonnet 4, GPT-4o-mini, FastAPI, and React.
         </p>
       </div>
