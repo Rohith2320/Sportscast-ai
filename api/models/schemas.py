@@ -97,6 +97,7 @@ class CachedGame(BaseModel):
     cached_at: str
     has_narrative: bool
     title: Optional[str] = None
+    match_date: Optional[str] = None
 
 
 class GamesResponse(BaseModel):

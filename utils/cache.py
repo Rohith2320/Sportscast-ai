@@ -145,6 +145,20 @@ def list_cached_games(sport: str = None) -> list[dict]:
                 title = line[2:].strip()
                 break
 
+        # Extract match date from raw_match_data per sport
+        raw = cache_data["state"].get("raw_match_data") or {}
+        sport_name = cache_data.get("sport", "")
+        match_date = None
+        if sport_name == "f1":
+            match_date = raw.get("date")
+        elif sport_name == "soccer":
+            match_date = raw.get("date") or raw.get("event_date")
+        elif sport_name == "mlb":
+            match_date = raw.get("game_date")
+        elif sport_name == "valorant":
+            match_date = raw.get("date")
+        # NBA raw_match_data doesn't include date; leave as None (use cached_at)
+
         cached.append({
             "game_id": cache_data["game_id"],
             "sport": cache_data["sport"],
@@ -152,6 +166,7 @@ def list_cached_games(sport: str = None) -> list[dict]:
             "match_id": cache_data["state"].get("match_id"),
             "has_narrative": bool(cache_data["state"].get("narrative")),
             "title": title,
+            "match_date": match_date,
         })
 
     cached.sort(key=lambda x: x["cached_at"], reverse=True)

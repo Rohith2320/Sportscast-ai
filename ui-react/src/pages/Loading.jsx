@@ -5,12 +5,20 @@ import { getJobStatus } from '../api'
 import { SPORTS } from '../config'
 
 const AGENT_STEPS = [
-  { key: 'fetch', label: 'Fetching match data', icon: '📡' },
-  { key: 'match', label: 'Analyzing match performance', icon: '📊' },
-  { key: 'player', label: 'Analyzing player performances', icon: '👤' },
-  { key: 'enrich', label: 'Enriching with context', icon: '🔍' },
-  { key: 'narrative', label: 'Generating narrative', icon: '✍️' },
+  { key: 'fetch', label: 'Fetching match data', icon: '📡', secsRemaining: 80 },
+  { key: 'match', label: 'Analyzing match performance', icon: '📊', secsRemaining: 65 },
+  { key: 'player', label: 'Analyzing player performances', icon: '👤', secsRemaining: 50 },
+  { key: 'enrich', label: 'Enriching with context', icon: '🔍', secsRemaining: 30 },
+  { key: 'narrative', label: 'Generating narrative', icon: '✍️', secsRemaining: 12 },
 ]
+
+const SPORT_FETCH_MSG = {
+  nba: 'Fetching NBA box score and play-by-play data',
+  mlb: 'Fetching MLB box score and pitching data',
+  f1: 'Fetching F1 race results and telemetry',
+  soccer: 'Fetching match statistics and lineups',
+  valorant: 'Fetching VCT match data and round history',
+}
 
 export default function Loading() {
   const { jobId } = useParams()
@@ -162,7 +170,50 @@ export default function Loading() {
               ? job?.error || 'Something went wrong'
               : 'Multi-agent pipeline running'}
           </p>
+
+          {!isComplete && !isFailed && (
+            <div style={{ marginTop: '20px' }}>
+              <p style={{ fontSize: '13px', color: '#555', lineHeight: 1.7, margin: '0 0 6px 0' }}>
+                Our AI pipeline is fetching live match data and generating broadcast-quality analysis.
+              </p>
+              <p style={{ fontSize: '12px', color: '#3A3A3A', margin: 0 }}>
+                Fresh analysis takes 60–90 seconds. Cached analyses load instantly.
+              </p>
+              {currentStepIndex === 0 && (
+                <p style={{ fontSize: '12px', color: sportConfig.color, marginTop: '8px', opacity: 0.8 }}>
+                  {SPORT_FETCH_MSG[sport] || SPORT_FETCH_MSG.nba}...
+                </p>
+              )}
+              {currentStepIndex > 0 && currentStepIndex < AGENT_STEPS.length && (
+                <p style={{ fontSize: '12px', color: '#444', marginTop: '8px' }}>
+                  Est. time remaining:{' '}
+                  <span style={{ color: sportConfig.color, fontWeight: 600 }}>
+                    ~{AGENT_STEPS[currentStepIndex].secsRemaining}s
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
         </motion.div>
+
+        {/* Progress bar */}
+        <div style={{
+          width: '100%', height: '3px', backgroundColor: '#1A1A1A',
+          borderRadius: '2px', marginBottom: '32px', overflow: 'hidden',
+        }}>
+          <motion.div
+            style={{
+              height: '100%',
+              borderRadius: '2px',
+              backgroundColor: isComplete ? '#22C55E' : sportConfig.color,
+            }}
+            animate={{
+              width: isComplete ? '100%' : `${Math.max(5, (completedSteps.length / AGENT_STEPS.length) * 100)}%`,
+              boxShadow: isComplete ? '0 0 8px #22C55E' : `0 0 6px ${sportConfig.color}`,
+            }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+          />
+        </div>
 
         {/* Agent steps */}
         <div style={{

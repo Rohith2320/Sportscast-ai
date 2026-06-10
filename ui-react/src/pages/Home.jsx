@@ -1,40 +1,74 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SPORTS } from '../config'
-import { getCachedGames, startAnalysis } from '../api'
+import { getCachedGames, startAnalysis, getHealth, discoverLatest } from '../api'
 
 export default function Home() {
   const navigate = useNavigate()
-  const [selectedSport, setSelectedSport] = useState('nba')
+  const [selectedSport, setSelectedSport] = useState(() => sessionStorage.getItem('lastSport') || 'nba')
+  const [allGames, setAllGames] = useState({})
   const [games, setGames] = useState([])
   const [filteredGames, setFilteredGames] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [matchInput, setMatchInput] = useState('latest')
+  const [matchInput, setMatchInput] = useState('')
   const [persona, setPersona] = useState('espn_formal')
   const [forceRefresh, setForceRefresh] = useState(false)
   const [loading, setLoading] = useState(false)
   const [gamesLoading, setGamesLoading] = useState(false)
   const [hoveredGame, setHoveredGame] = useState(null)
+  const [discovering, setDiscovering] = useState(false)
+  const [apiDown, setApiDown] = useState(false)
+  const failCountRef = useRef(0)
+  const healthTimerRef = useRef(null)
+  const [recentGames, setRecentGames] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('recentGames') || '[]') } catch { return [] }
+  })
 
   const sport = SPORTS[selectedSport]
 
-  // Fetch cached games when sport changes
+  // Health check: poll every 15s, show banner after 2 consecutive failures, auto-dismiss on recovery
+  useEffect(() => {
+    const checkHealth = () => {
+      getHealth()
+        .then(() => {
+          failCountRef.current = 0
+          setApiDown(false)
+        })
+        .catch(() => {
+          failCountRef.current += 1
+          if (failCountRef.current >= 2) setApiDown(true)
+        })
+    }
+    checkHealth()
+    healthTimerRef.current = setInterval(checkHealth, 15000)
+    return () => clearInterval(healthTimerRef.current)
+  }, [])
+
+  // Preload all sports on mount
   useEffect(() => {
     setGamesLoading(true)
+    Promise.all(
+      ['nba', 'f1', 'soccer', 'valorant', 'mlb'].map(s =>
+        getCachedGames(s).then(d => [s, d.games || []]).catch(() => [s, []])
+      )
+    ).then(results => {
+      const map = Object.fromEntries(results)
+      setAllGames(map)
+      const initial = sessionStorage.getItem('lastSport') || 'nba'
+      setGames(map[initial] || [])
+      setFilteredGames(map[initial] || [])
+    }).finally(() => setGamesLoading(false))
+  }, [])
+
+  // Update displayed games when sport changes (instant — reads from cache)
+  useEffect(() => {
+    if (Object.keys(allGames).length === 0) return
     setSearchQuery('')
-    getCachedGames(selectedSport)
-      .then(data => {
-        const g = data.games || []
-        setGames(g)
-        setFilteredGames(g)
-      })
-      .catch(() => {
-        setGames([])
-        setFilteredGames([])
-      })
-      .finally(() => setGamesLoading(false))
-  }, [selectedSport])
+    const g = allGames[selectedSport] || []
+    setGames(g)
+    setFilteredGames(g)
+  }, [selectedSport, allGames])
 
   // Filter games by search query
   useEffect(() => {
@@ -69,17 +103,81 @@ export default function Home() {
   const handleViewGame = (game) => {
     const safeId = game.game_id.replace(/\//g, '_')
     navigate(`/analysis/${game.sport}/${safeId}`)
-}
+  }
 
-  const getGameTitle = (game) => {
-    if (game.title) return game.title
-    const id = game.match_id || game.game_id
-    if (game.sport === 'f1') {
-      const parts = id.replace('_', '/').split('/')
-      return parts.length === 2 ? `Round ${parts[1]} — ${parts[0]}` : id
+  const handleDiscover = async () => {
+    if (discovering || loading) return
+    setDiscovering(true)
+    try {
+      const found = await discoverLatest(selectedSport)
+      // Auto-fill and immediately trigger analysis
+      const data = await startAnalysis(selectedSport, found.match_id, persona, false)
+      if (data.job_id) {
+        navigate(`/loading/${data.job_id}`, {
+          state: { sport: selectedSport, matchId: found.match_id }
+        })
+      }
+    } catch (err) {
+      console.error('Discovery failed:', err)
+      // Fall back to "latest" for non-NBA sports
+      if (selectedSport !== 'nba') {
+        setMatchInput('latest')
+      }
+    } finally {
+      setDiscovering(false)
     }
-    if (game.sport === 'nba' || game.sport === 'mlb') return `Game ${id.slice(-4)}`
-    return id.replace(/_/g, ' ').toUpperCase()
+  }
+
+  const parseCardTitle = (game) => {
+    let raw = game.title || ''
+    if (!raw) {
+      const id = game.match_id || game.game_id
+      if (game.sport === 'f1') {
+        const parts = id.replace('_', '/').split('/')
+        return { title: parts.length === 2 ? `Round ${parts[1]} — ${parts[0]}` : id, score: null }
+      }
+      return { title: id.replace(/_/g, ' '), score: null }
+    }
+
+    // Pattern: "OKC Thunder 115, Lakers 110" → "OKC Thunder vs Lakers" + "115–110"
+    // Pattern: "Brighton 3-0 Leeds" → "Brighton vs Leeds" + "3–0"
+    // Pattern: "Team A 2 vs Team B 1" etc.
+    let score = null
+    let title = raw
+
+    // "Name Score, Name Score" format (NBA/MLB style)
+    const commaScore = raw.match(/^(.+?)\s+(\d+),\s+(.+?)\s+(\d+)$/)
+    if (commaScore) {
+      const [, t1, s1, t2, s2] = commaScore
+      // Shorten team names: last word only if > 3 words
+      const shorten = t => {
+        const parts = t.trim().split(' ')
+        return parts.length > 2 ? parts.slice(-2).join(' ') : t.trim()
+      }
+      title = `${shorten(t1)} vs ${shorten(t2)}`
+      score = `${s1}–${s2}`
+      return { title, score }
+    }
+
+    // "Name N-N Name" or "Name N–N Name" format
+    const dashScore = raw.match(/(\d+)[–-](\d+)/)
+    if (dashScore) {
+      score = `${dashScore[1]}–${dashScore[2]}`
+      title = raw.replace(dashScore[0], '').replace(/\s{2,}/g, ' ').trim()
+    }
+
+    // Strip trailing colon or subtext
+    title = title.replace(/[:\|].*$/, '').trim()
+    return { title: title || raw, score }
+  }
+
+  const formatMatchDate = (game) => {
+    const dateStr = game.match_date || game.cached_at
+    if (!dateStr) return ''
+    try {
+      const d = new Date(dateStr)
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    } catch { return '' }
   }
 
   return (
@@ -90,11 +188,36 @@ export default function Home() {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
     >
+      {/* ── API DOWN BANNER ── */}
+      <AnimatePresence>
+        {apiDown && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            style={{
+              backgroundColor: '#150808',
+              borderBottom: '1px solid #3A1010',
+              padding: '8px 40px',
+              textAlign: 'center',
+            }}
+          >
+            <span style={{ fontSize: '12px', color: '#F87171', letterSpacing: '0.5px' }}>
+              ⚠️ API server not responding — start FastAPI on port 8000 to use SportsCast AI
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── HEADER ── */}
       <div style={{
         borderBottom: '1px solid #1A1A1A',
         backgroundColor: '#0D0D0D',
         padding: '0 40px',
+        borderTop: `2px solid ${sport.color}`,
+        background: `radial-gradient(ellipse at top left, ${sport.color}08 0%, transparent 60%), #0D0D0D`,
+        transition: 'border-top-color 0.4s, background 0.4s',
       }}>
         <div style={{
           display: 'flex',
@@ -150,7 +273,7 @@ export default function Home() {
             return (
               <motion.button
                 key={key}
-                onClick={() => setSelectedSport(key)}
+                onClick={() => { setSelectedSport(key); sessionStorage.setItem('lastSport', key); setMatchInput('') }}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 style={{
@@ -258,7 +381,7 @@ export default function Home() {
                   border: '1px dashed #1E1E1E', borderRadius: '12px',
                   padding: '64px', textAlign: 'center',
                 }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>{sport.icon}</div>
+                <div style={{ fontSize: '56px', marginBottom: '12px' }}>{sport.icon}</div>
                 {searchQuery ? (
                   <>
                     <p style={{ color: '#444', fontSize: '14px' }}>No results for "{searchQuery}"</p>
@@ -268,10 +391,40 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                    <p style={{ color: '#444', fontSize: '14px' }}>No {sport.label} analyses yet</p>
-                    <p style={{ color: '#333', fontSize: '12px', marginTop: '4px' }}>
-                      Run your first analysis →
+                    <h2 style={{
+                      fontFamily: 'Bebas Neue, sans-serif', fontSize: '48px',
+                      color: '#FFF', letterSpacing: '3px', margin: '0 0 12px 0',
+                    }}>{sport.label}</h2>
+                    <p style={{ color: '#555', fontSize: '14px', margin: '0 0 24px 0' }}>
+                      {{
+                        nba: 'AI-powered box score breakdowns, player ratings, and game narratives',
+                        f1: 'Race telemetry analysis, driver performance, and strategy breakdowns',
+                        soccer: 'Match analysis, tactical insights, and player performance ratings',
+                        valorant: 'VCT round analysis, agent picks, and clutch moment breakdowns',
+                        mlb: 'Pitching matchups, hitting analysis, and game-deciding moments',
+                      }[selectedSport]}
                     </p>
+                    {selectedSport === 'nba' ? (
+                      <p style={{ color: '#444', fontSize: '13px' }}>
+                        Enter a team name in the panel to analyze their latest game
+                      </p>
+                    ) : (
+                      <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={handleDiscover}
+                        disabled={discovering}
+                        style={{
+                          padding: '12px 32px', fontSize: '12px', fontWeight: 700,
+                          letterSpacing: '2px', textTransform: 'uppercase',
+                          border: `1px solid ${sport.color}`, borderRadius: '8px',
+                          backgroundColor: 'transparent', color: sport.color,
+                          cursor: discovering ? 'wait' : 'pointer', fontFamily: 'Inter, sans-serif',
+                        }}
+                      >
+                        {discovering ? 'Finding...' : `⚡ Discover Latest ${sport.label} →`}
+                      </motion.button>
+                    )}
                   </>
                 )}
               </motion.div>
@@ -289,17 +442,26 @@ export default function Home() {
                     onMouseEnter={() => setHoveredGame(game.game_id)}
                     onMouseLeave={() => setHoveredGame(null)}
                     style={{
-                      backgroundColor: hoveredGame === game.game_id ? '#141414' : '#111',
+                      backgroundColor: hoveredGame === game.game_id
+                        ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
+                      backdropFilter: 'blur(10px)',
+                      background: hoveredGame === game.game_id
+                        ? `linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 100%)`
+                        : `linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 100%)`,
                       border: `1px solid ${hoveredGame === game.game_id ? '#2E2E2E' : '#1A1A1A'}`,
+                      boxShadow: hoveredGame === game.game_id ? `0 0 20px ${sport.color}20` : 'none',
                       borderRadius: '10px',
                       padding: '20px 24px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       cursor: 'pointer',
-                      transition: 'all 0.2s',
+                      transition: 'all 0.3s ease',
                     }}
                   >
+                    {(() => {
+                      const { title, score } = parseCardTitle(game)
+                      return (
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         fontSize: '10px', fontWeight: 700,
@@ -310,23 +472,33 @@ export default function Home() {
                       </div>
                       <div style={{
                         fontSize: '16px', fontWeight: 600, color: '#FFFFFF',
-                        marginBottom: '6px', whiteSpace: 'nowrap',
+                        marginBottom: score ? '2px' : '6px', whiteSpace: 'nowrap',
                         overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>
-                        {getGameTitle(game)}
+                        {title}
                       </div>
+                      {score && (
+                        <div style={{
+                          fontSize: '13px', color: sport.color, fontFamily: 'monospace',
+                          fontWeight: 600, marginBottom: '6px', letterSpacing: '1px',
+                        }}>
+                          {score}
+                        </div>
+                      )}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ fontSize: '12px', color: '#333' }}>
-                          {game.cached_at?.slice(0, 10)}
+                          {formatMatchDate(game)}
                         </span>
                         <span style={{ fontSize: '11px', color: '#1A6A1A', fontWeight: 600 }}>
                           ● Cached
                         </span>
                       </div>
                     </div>
+                      )
+                    })()}
 
                     <motion.button
-                      whileHover={{ scale: 1.05 }}
+                      whileHover={{ scale: 1.05, x: 3 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={e => { e.stopPropagation(); handleViewGame(game) }}
                       style={{
@@ -354,6 +526,131 @@ export default function Home() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* World Cup 2026 Banner — Soccer only */}
+          {selectedSport === 'soccer' && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                marginTop: '20px',
+                background: 'rgba(0,212,170,0.07)',
+                border: '1px solid #00D4AA',
+                borderRadius: '10px',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#00D4AA', marginBottom: '4px' }}>
+                  🏆 FIFA World Cup 2026 is LIVE
+                </div>
+                <div style={{ fontSize: '11px', color: '#666', lineHeight: 1.5 }}>
+                  48 teams · 3 host nations · USA, Canada, Mexico
+                </div>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={handleDiscover}
+                disabled={discovering}
+                style={{
+                  padding: '8px 16px', fontSize: '11px', fontWeight: 700,
+                  letterSpacing: '1px', textTransform: 'uppercase',
+                  border: '1px solid #00D4AA', borderRadius: '6px',
+                  background: 'transparent', color: '#00D4AA',
+                  cursor: discovering ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                  fontFamily: 'Inter, sans-serif',
+                }}
+              >
+                {discovering ? '...' : 'Analyze →'}
+              </motion.button>
+            </motion.div>
+          )}
+
+          {/* Discover Latest */}
+          <div style={{ marginTop: '20px' }}>
+            <motion.button
+              whileHover={{ scale: discovering || loading ? 1 : 1.02 }}
+              whileTap={{ scale: discovering || loading ? 1 : 0.97 }}
+              onClick={handleDiscover}
+              disabled={discovering || loading}
+              style={{
+                width: '100%', padding: '11px 16px',
+                fontSize: '12px', fontWeight: 600, letterSpacing: '1px',
+                textTransform: 'uppercase',
+                border: `1px solid ${discovering ? sport.color : '#2A2A2A'}`,
+                borderRadius: '8px',
+                backgroundColor: discovering ? `${sport.color}10` : 'transparent',
+                color: discovering ? sport.color : '#555',
+                cursor: discovering || loading ? 'not-allowed' : 'pointer',
+                fontFamily: 'Inter, sans-serif',
+                transition: 'all 0.2s',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              }}
+            >
+              {discovering ? (
+                <>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    style={{
+                      width: '12px', height: '12px',
+                      border: `2px solid ${sport.color}`,
+                      borderTopColor: 'transparent', borderRadius: '50%',
+                    }}
+                  />
+                  Finding latest {sport.label}...
+                </>
+              ) : (
+                `⚡ Discover Latest ${sport.label}`
+              )}
+            </motion.button>
+          </div>
+
+          {/* Recently Viewed */}
+          {recentGames.length > 0 && (
+            <div style={{ marginTop: '28px' }}>
+              <div style={{
+                fontSize: '10px', color: '#333', letterSpacing: '2px',
+                textTransform: 'uppercase', marginBottom: '10px',
+              }}>
+                Recently Viewed
+              </div>
+              {recentGames.map((g, i) => {
+                const s = SPORTS[g.sport] || SPORTS.nba
+                return (
+                  <motion.div
+                    key={i}
+                    whileHover={{ x: 2 }}
+                    onClick={() => navigate(`/analysis/${g.sport}/${g.gameId.replace(/\//g, '_')}`)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '8px 0', cursor: 'pointer',
+                      borderBottom: '1px solid #111',
+                    }}
+                  >
+                    <span style={{ fontSize: '13px' }}>{s.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '12px', color: '#888',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>{g.title}</div>
+                    </div>
+                    <span style={{
+                      fontSize: '9px', fontWeight: 700, letterSpacing: '1px',
+                      textTransform: 'uppercase', color: s.color,
+                      border: `1px solid ${s.color}40`, borderRadius: '3px',
+                      padding: '1px 5px',
+                    }}>{s.label}</span>
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* ── RIGHT: New Analysis Panel ── */}
@@ -452,6 +749,7 @@ export default function Home() {
             </div>
 
             <motion.button
+              data-analyze
               onClick={handleAnalyze}
               disabled={loading}
               whileHover={{ scale: loading ? 1 : 1.02 }}
@@ -483,7 +781,7 @@ export default function Home() {
             {Object.entries(SPORTS).map(([key, config]) => (
               <div
                 key={key}
-                onClick={() => setSelectedSport(key)}
+                onClick={() => { setSelectedSport(key); sessionStorage.setItem('lastSport', key); setMatchInput('') }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '10px',
                   padding: '7px 0', cursor: 'pointer',
@@ -504,6 +802,24 @@ export default function Home() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* ── ABOUT FOOTER ── */}
+      <div style={{
+        borderTop: '1px solid #111',
+        padding: '32px 40px',
+        marginTop: '0',
+      }}>
+        <p style={{
+          maxWidth: '760px', margin: '0 auto',
+          fontSize: '12px', color: '#333', lineHeight: 1.8,
+          textAlign: 'center', letterSpacing: '0.3px',
+        }}>
+          <span style={{ color: '#444', fontWeight: 600 }}>SportsCast AI</span> is a multi-agent sports analysis system.
+          Unlike data lookup tools, it uses a 5-agent LangGraph pipeline — fetch, match analysis, player analysis,
+          enrichment, and narrative — to generate original broadcast-quality analysis from live match data.
+          Built with LangGraph, Claude Sonnet 4, GPT-4o-mini, FastAPI, and React.
+        </p>
       </div>
     </motion.div>
   )

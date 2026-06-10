@@ -123,24 +123,56 @@ def fetch_nba_match(match_id: str) -> dict:
     return data
 
 
+@with_retry(max_attempts=3, base_delay=2)
+def find_latest_nba_game() -> tuple[str, str]:
+    """
+    Find the most recent completed NBA game across ALL teams.
+    Used when match_id == "latest".
+
+    Returns:
+        Tuple of (game_id, description)
+    """
+    from data_sources.nba_recent_games import fetch_recent_games
+    result = fetch_recent_games(max_days_back=7)
+    featured = result.get("featured")
+    if not featured:
+        # Fall back to any game from 'latest'
+        latest = result.get("latest", [])
+        if not latest:
+            raise ValueError("No recent NBA games found")
+        featured = latest[0]
+
+    game_id = featured["game_id"]
+    description = (
+        f"{featured['team1_name']} vs {featured['team2_name']} — {featured['date']}"
+    )
+    return game_id, description
+
+
 def nba_fetch_node(state: SportsCastState) -> dict:
     """
     LangGraph node that fetches NBA match data.
 
-    Accepts either:
-    - A direct game ID in state["match_id"] (e.g. "0022300456")
-    - A team name in state["match_id"] (e.g. "Lakers")
-
-    If a team name is provided, automatically finds their most recent game.
+    Accepts:
+    - "latest" → finds the most recently completed game automatically
+    - A direct game ID (e.g. "0022300456")
+    - A team name (e.g. "Lakers") → finds their most recent game
     """
 
     match_id = state["match_id"]
     start_time = log_agent_start("NBAFetchAgent")
 
     try:
+        # "latest" keyword → find the most recent NBA game automatically
+        if match_id.lower().strip() == "latest":
+            print("Finding most recent NBA game...")
+            game_id, description = find_latest_nba_game()
+            print(f"Found: {description}")
+            match_id = game_id
+
         # Check if match_id looks like a real game ID
         # NBA game IDs are 10-digit strings starting with "002"
-        if not match_id.startswith("00") or len(match_id) != 10:
+        elif not match_id.startswith("00") or len(match_id) != 10:
             # Treat as team name - find their most recent game
             print(f"Searching for most recent game: {match_id}...")
             game_id, description = find_recent_game_id(match_id)

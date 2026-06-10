@@ -47,3 +47,13 @@ export const getHealth = async () => {
   const res = await API.get('/health')
   return res.data
 }
+
+export const discoverLatest = async (sport) => {
+  const res = await API.get(`/discover/${sport}`)
+  return res.data
+}
+
+export const generateTTS = async (text, voiceId) => {
+  const res = await API.post('/tts/', { text, voice_id: voiceId || 'JBFqnCBsd6RMkjVDRZzb' })
+  return res.data
+}

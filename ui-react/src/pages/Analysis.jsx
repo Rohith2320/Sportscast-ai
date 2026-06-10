@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getGame, sendChat } from '../api'
+import { getGame, sendChat, generateTTS } from '../api'
 import { SPORTS } from '../config'
 
 export default function Analysis() {
@@ -16,7 +16,13 @@ export default function Analysis() {
   const [chatHistory, setChatHistory] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
-  const [cost, setCost] = useState(0)
+  const [cost, setCost] = useState(null)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [voiceLoading, setVoiceLoading] = useState(false)
+  const [usingElevenLabs, setUsingElevenLabs] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
+  const audioRef = useRef(null)
   const chatEndRef = useRef(null)
 
   // Load analysis data
@@ -24,8 +30,9 @@ export default function Analysis() {
     const jobData = location.state?.jobData
     if (jobData?.result) {
       setResult(jobData.result)
-      setCost(jobData.cost || 0)
+      setCost(jobData.cost ?? null)
       setLoading(false)
+      saveRecentGame(sport, gameId, jobData.result)
       return
     }
 
@@ -35,11 +42,23 @@ export default function Analysis() {
       .then(data => {
         setResult(data)
         setLoading(false)
+        saveRecentGame(sport, gameId, data)
       })
       .catch(() => {
         setLoading(false)
       })
   }, [sport, gameId])
+
+  const saveRecentGame = (sport, gameId, data) => {
+    try {
+      const firstLine = (data?.match_analysis || data?.narrative || '').split('\n').find(l => l.startsWith('# '))
+      const title = firstLine ? firstLine.slice(2).trim() : gameId
+      const existing = JSON.parse(sessionStorage.getItem('recentGames') || '[]')
+      const filtered = existing.filter(g => g.gameId !== gameId)
+      const updated = [{ sport, gameId, title }, ...filtered].slice(0, 3)
+      sessionStorage.setItem('recentGames', JSON.stringify(updated))
+    } catch {}
+  }
 
   // Auto scroll chat
   useEffect(() => {
@@ -78,6 +97,98 @@ export default function Analysis() {
     }
   }
 
+  // Stop speech when leaving page or result changes
+  useEffect(() => {
+    return () => window.speechSynthesis?.cancel()
+  }, [result])
+
+  const stripMarkdown = (text) => {
+    if (!text) return ''
+    return text
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/`(.*?)`/g, '$1')
+      .replace(/---+/g, '')
+      .trim()
+  }
+
+  const _speakWebSpeech = (text) => {
+    if (!window.speechSynthesis) return
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 0.9
+    const voices = window.speechSynthesis.getVoices()
+    const preferred = voices.find(v => v.name.toLowerCase().includes('google uk english male'))
+      || voices.find(v => v.lang === 'en-GB')
+      || voices[0]
+    if (preferred) utterance.voice = preferred
+    utterance.onend = () => setIsSpeaking(false)
+    utterance.onerror = () => setIsSpeaking(false)
+    window.speechSynthesis.speak(utterance)
+    setIsSpeaking(true)
+  }
+
+  const handleVoice = async () => {
+    // Stop if already playing
+    if (isSpeaking) {
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null }
+      window.speechSynthesis?.cancel()
+      setIsSpeaking(false)
+      return
+    }
+
+    const text = stripMarkdown(result?.narrative || '')
+    setVoiceLoading(true)
+
+    try {
+      const ttsResult = await generateTTS(text)
+
+      if (ttsResult.fallback) {
+        // ElevenLabs not configured — use Web Speech API
+        setUsingElevenLabs(false)
+        setVoiceLoading(false)
+        _speakWebSpeech(text)
+        return
+      }
+
+      if (ttsResult.success && ttsResult.audio_base64) {
+        setUsingElevenLabs(true)
+        const blob = new Blob(
+          [Uint8Array.from(atob(ttsResult.audio_base64), c => c.charCodeAt(0))],
+          { type: 'audio/mpeg' }
+        )
+        const url = URL.createObjectURL(blob)
+        const audio = new Audio(url)
+        audioRef.current = audio
+        audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url) }
+        audio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url) }
+        audio.play()
+        setIsSpeaking(true)
+      }
+    } catch {
+      // Network error — fall back to Web Speech API
+      setUsingElevenLabs(false)
+      _speakWebSpeech(text)
+    } finally {
+      setVoiceLoading(false)
+    }
+  }
+
+  const handleCopyNarrative = () => {
+    const text = stripMarkdown(result?.narrative || '')
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
+    })
+  }
+
   const formatNarrative = (text) => {
     if (!text) return []
     const lines = text.split('\n')
@@ -114,11 +225,12 @@ export default function Analysis() {
     return blocks
   }
 
+  const chatMsgCount = Math.floor(chatHistory.length / 2)
   const tabs = [
     { key: 'narrative', label: 'Narrative' },
     { key: 'match', label: 'Match Analysis' },
     { key: 'player', label: 'Player Analysis' },
-    { key: 'chat', label: `Chat ${chatHistory.length > 0 ? `(${Math.floor(chatHistory.length / 2)})` : ''}` },
+    { key: 'chat', label: 'Chat', badge: chatMsgCount > 0 ? chatMsgCount : null },
   ]
 
   if (loading) {
@@ -174,6 +286,32 @@ export default function Analysis() {
 
   const narrativeBlocks = formatNarrative(result.narrative)
   const matchId = result.match_id || gameId
+
+  const parseMatchTitle = () => {
+    const firstLine = (result.match_analysis || result.narrative || '').split('\n').find(l => l.startsWith('# '))
+    if (firstLine) {
+      let title = firstLine.slice(2).trim()
+      // Strip score numbers like "115, 110" or "3-1" from title — keep just team names
+      title = title.replace(/\s*[\d]+[,\s]+[\d]+\s*$/, '').trim()
+      title = title.replace(/\s*[\d]+-[\d]+\s*$/, '').trim()
+      if (title.length > 3) return title.toUpperCase()
+    }
+    return matchId.replace(/_/g, ' / ').toUpperCase()
+  }
+  const pageTitle = parseMatchTitle()
+
+  const pageSubtitle = (() => {
+    const parts = [sportConfig.label]
+    if (result?.match_date) {
+      try {
+        const d = new Date(result.match_date)
+        parts.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))
+      } catch {}
+    }
+    const personaLabel = result?.persona === 'tactical_coach' ? 'Tactical Coach' : 'ESPN Formal'
+    parts.push(personaLabel)
+    return parts.join(' · ')
+  })()
 
   return (
     <motion.div
@@ -248,13 +386,91 @@ export default function Analysis() {
                 margin: 0,
                 lineHeight: 1,
               }}>
-                {matchId.replace(/_/g, ' / ').toUpperCase()}
+                {pageTitle}
               </h1>
+              <div style={{
+                fontSize: '11px', color: '#444', marginTop: '5px',
+                letterSpacing: '1px',
+              }}>
+                {pageSubtitle}
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {cost === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Share */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleShare}
+              title="Copy link"
+              style={{
+                padding: '4px 12px', fontSize: '11px', fontWeight: 600,
+                letterSpacing: '1px', borderRadius: '20px',
+                border: '1px solid #2A2A2A', background: 'none',
+                color: shareCopied ? '#22C55E' : '#555',
+                cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                transition: 'color 0.2s',
+              }}
+            >
+              {shareCopied ? '✓ Copied' : '⎋ Share'}
+            </motion.button>
+            {/* Copy narrative */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleCopyNarrative}
+              title="Copy narrative"
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                border: '1px solid #2A2A2A', background: 'none',
+                color: copied ? '#22C55E' : '#555',
+                cursor: 'pointer', fontSize: '15px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'color 0.2s',
+              }}
+            >
+              {copied ? '✓' : '📋'}
+            </motion.button>
+            {/* Voice */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+              <motion.button
+                whileHover={{ scale: voiceLoading ? 1 : 1.05 }}
+                whileTap={{ scale: voiceLoading ? 1 : 0.95 }}
+                onClick={handleVoice}
+                disabled={voiceLoading}
+                title="Read narrative aloud"
+                animate={isSpeaking ? { boxShadow: ['0 0 0px transparent', `0 0 10px ${sportConfig.color}40`, '0 0 0px transparent'] } : {}}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                style={{
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  border: `1px solid ${isSpeaking ? sportConfig.color : '#2A2A2A'}`,
+                  background: isSpeaking ? `${sportConfig.color}20` : 'none',
+                  color: isSpeaking ? sportConfig.color : voiceLoading ? '#444' : '#555',
+                  cursor: voiceLoading ? 'wait' : 'pointer', fontSize: '14px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {voiceLoading ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    style={{
+                      width: '10px', height: '10px',
+                      border: `2px solid ${sportConfig.color}`,
+                      borderTopColor: 'transparent', borderRadius: '50%',
+                    }}
+                  />
+                ) : isSpeaking ? '⏸' : '🔊'}
+              </motion.button>
+              {usingElevenLabs && (isSpeaking || voiceLoading) && (
+                <span style={{ fontSize: '8px', color: '#444', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
+                  ElevenLabs
+                </span>
+              )}
+            </div>
+            {(cost === null || cost === 0) ? (
               <span style={{
                 padding: '4px 12px',
                 borderRadius: '20px',
@@ -299,35 +515,52 @@ export default function Analysis() {
           display: 'flex',
           gap: '0',
         }}>
-          {tabs.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                padding: '14px 24px',
-                fontSize: '12px',
-                fontWeight: activeTab === tab.key ? 600 : 400,
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                background: 'none',
-                border: 'none',
-                borderBottom: `2px solid ${activeTab === tab.key ? sportConfig.color : 'transparent'}`,
-                color: activeTab === tab.key ? '#FFFFFF' : '#444',
-                cursor: 'pointer',
-                transition: 'color 0.2s, border-color 0.2s',
-                fontFamily: 'Inter, sans-serif',
-                marginBottom: '-1px',
-              }}
-              onMouseEnter={e => {
-                if (activeTab !== tab.key) e.currentTarget.style.color = '#888'
-              }}
-              onMouseLeave={e => {
-                if (activeTab !== tab.key) e.currentTarget.style.color = '#444'
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {tabs.map(tab => {
+            const isActive = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  padding: '10px 20px',
+                  fontSize: '12px',
+                  fontWeight: isActive ? 600 : 400,
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  border: 'none',
+                  borderBottom: `2px solid ${isActive ? sportConfig.color : 'transparent'}`,
+                  backgroundColor: isActive ? `${sportConfig.color}26` : 'transparent',
+                  color: isActive ? sportConfig.color : '#444',
+                  cursor: 'pointer',
+                  transition: 'color 0.2s, background-color 0.2s, border-color 0.2s',
+                  fontFamily: 'Inter, sans-serif',
+                  marginBottom: '-1px',
+                  borderRadius: '6px 6px 0 0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+                onMouseEnter={e => {
+                  if (!isActive) e.currentTarget.style.color = '#888'
+                }}
+                onMouseLeave={e => {
+                  if (!isActive) e.currentTarget.style.color = '#444'
+                }}
+              >
+                {tab.label}
+                {tab.badge && (
+                  <span style={{
+                    fontSize: '9px', fontWeight: 700,
+                    backgroundColor: sportConfig.color,
+                    color: '#000', borderRadius: '10px',
+                    padding: '1px 6px', lineHeight: '14px',
+                  }}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -349,49 +582,58 @@ export default function Analysis() {
               transition={{ duration: 0.2 }}
               style={{ maxWidth: '760px', margin: '0 auto' }}
             >
-              {narrativeBlocks.map((block, i) => {
-                if (block.type === 'title') {
+              {(() => {
+                let firstParaSeen = false
+                return narrativeBlocks.map((block, i) => {
+                  if (block.type === 'title') {
+                    return (
+                      <h2 key={i} style={{
+                        fontFamily: 'Bebas Neue, sans-serif',
+                        fontSize: '36px',
+                        letterSpacing: '2px',
+                        color: '#FFFFFF',
+                        marginBottom: '32px',
+                        lineHeight: 1.1,
+                      }}>
+                        {block.content}
+                      </h2>
+                    )
+                  }
+                  if (block.type === 'heading') {
+                    return (
+                      <h3 key={i} style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        letterSpacing: '2px',
+                        textTransform: 'uppercase',
+                        color: sportConfig.color,
+                        marginTop: '40px',
+                        marginBottom: '16px',
+                      }}>
+                        {block.content}
+                      </h3>
+                    )
+                  }
+                  const isFirst = !firstParaSeen
+                  if (!firstParaSeen) firstParaSeen = true
                   return (
-                    <h2 key={i} style={{
-                      fontFamily: 'Bebas Neue, sans-serif',
-                      fontSize: '36px',
-                      letterSpacing: '2px',
-                      color: '#FFFFFF',
-                      marginBottom: '32px',
-                      lineHeight: 1.1,
+                    <p key={i} style={{
+                      fontSize: '17px',
+                      lineHeight: 1.85,
+                      color: '#CCCCCC',
+                      marginBottom: '24px',
+                      fontWeight: 300,
+                      letterSpacing: '0.2px',
+                      ...(isFirst ? {
+                        borderLeft: `3px solid ${sportConfig.color}4D`,
+                        paddingLeft: '20px',
+                      } : {}),
                     }}>
                       {block.content}
-                    </h2>
+                    </p>
                   )
-                }
-                if (block.type === 'heading') {
-                  return (
-                    <h3 key={i} style={{
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      letterSpacing: '2px',
-                      textTransform: 'uppercase',
-                      color: sportConfig.color,
-                      marginTop: '40px',
-                      marginBottom: '16px',
-                    }}>
-                      {block.content}
-                    </h3>
-                  )
-                }
-                return (
-                  <p key={i} style={{
-                    fontSize: '17px',
-                    lineHeight: 1.85,
-                    color: '#CCCCCC',
-                    marginBottom: '24px',
-                    fontWeight: 300,
-                    letterSpacing: '0.2px',
-                  }}>
-                    {block.content}
-                  </p>
-                )
-              })}
+                })
+              })()}
             </motion.div>
           )}
 
@@ -676,18 +918,35 @@ export default function Analysis() {
                         color: '#CCCCCC',
                         lineHeight: 1.7,
                       }}>
-                        {msg.intent && (
-                          <div style={{
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            letterSpacing: '2px',
-                            textTransform: 'uppercase',
-                            color: '#333',
-                            marginBottom: '8px',
-                          }}>
-                            {msg.intent}
-                          </div>
-                        )}
+                        {msg.intent && (() => {
+                          const intentStyles = {
+                            analytical:   { bg: '#1E3A5F', color: '#3B82F6', border: '#2A4A6F' },
+                            factual:      { bg: '#1A3A1A', color: '#22C55E', border: '#2A4A2A' },
+                            predictive:   { bg: '#2D1B4E', color: '#8B5CF6', border: '#3D2B5E' },
+                            emotional:    { bg: '#3A1A0A', color: '#F59E0B', border: '#4A2A1A' },
+                            comparative:  { bg: '#1A2A3A', color: '#06B6D4', border: '#2A3A4A' },
+                            out_of_scope: { bg: '#1A1A1A', color: '#666',    border: '#2A2A2A' },
+                            clarification:{ bg: '#1A1A1A', color: '#888',    border: '#2A2A2A' },
+                          }
+                          const s = intentStyles[msg.intent] || intentStyles.out_of_scope
+                          return (
+                            <div style={{
+                              display: 'inline-block',
+                              fontSize: '9px',
+                              fontWeight: 700,
+                              letterSpacing: '2px',
+                              textTransform: 'uppercase',
+                              color: s.color,
+                              backgroundColor: s.bg,
+                              border: `1px solid ${s.border}`,
+                              borderRadius: '4px',
+                              padding: '2px 8px',
+                              marginBottom: '8px',
+                            }}>
+                              {msg.intent}
+                            </div>
+                          )
+                        })()}
                         {msg.content}
                       </div>
                     )}
@@ -698,21 +957,29 @@ export default function Analysis() {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    style={{ display: 'flex', gap: '4px', padding: '8px 0' }}
+                    exit={{ opacity: 0 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0' }}
                   >
-                    {[0, 1, 2].map(i => (
-                      <motion.div
-                        key={i}
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-                        style={{
-                          width: '6px',
-                          height: '6px',
-                          borderRadius: '50%',
-                          backgroundColor: sportConfig.color,
-                        }}
-                      />
-                    ))}
+                    <span style={{
+                      fontSize: '12px', color: sportConfig.color,
+                      letterSpacing: '0.5px', fontStyle: 'italic',
+                    }}>
+                      AI Analyst is thinking
+                    </span>
+                    <div style={{ display: 'flex', gap: '3px' }}>
+                      {[0, 1, 2].map(i => (
+                        <motion.div
+                          key={i}
+                          animate={{ opacity: [0.2, 1, 0.2] }}
+                          transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.3 }}
+                          style={{
+                            width: '5px', height: '5px',
+                            borderRadius: '50%',
+                            backgroundColor: sportConfig.color,
+                          }}
+                        />
+                      ))}
+                    </div>
                   </motion.div>
                 )}
 
