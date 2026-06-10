@@ -1,6 +1,15 @@
+import os
 from langgraph.graph import StateGraph, END
 from utils.state import SportsCastState
 from utils.cache import save_to_cache, load_from_cache
+
+# ── LangSmith tracing — graceful no-op when LANGCHAIN_API_KEY is not set ──
+try:
+    from langsmith import traceable as _langsmith_traceable
+    _LANGSMITH_ENABLED = bool(os.getenv("LANGCHAIN_API_KEY"))
+except ImportError:
+    _langsmith_traceable = None
+    _LANGSMITH_ENABLED = False
 from data_sources.nba_fetcher import nba_fetch_node
 from data_sources.f1_fetcher import f1_fetch_node
 from data_sources.soccer_fetcher import soccer_fetch_node
@@ -202,7 +211,7 @@ sportscast_pipeline = build_sportscast_graph()
 # PUBLIC API
 # ─────────────────────────────────────────────
 
-def run_analysis(
+def _run_analysis_impl(
     sport: str,
     match_id: str,
     persona: str = "espn_formal",
@@ -263,6 +272,16 @@ def run_analysis(
         save_to_cache(game_id, sport, result)
 
     return result
+
+
+# Apply LangSmith @traceable when API key is configured
+if _LANGSMITH_ENABLED and _langsmith_traceable:
+    run_analysis = _langsmith_traceable(
+        name="SportsCast Analysis Pipeline",
+        run_type="chain",
+    )(_run_analysis_impl)
+else:
+    run_analysis = _run_analysis_impl
 
 
 def run_nba_analysis(

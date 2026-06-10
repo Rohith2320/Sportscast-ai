@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Helmet } from 'react-helmet-async'
-import { getGame, sendChat, generateTTS } from '../api'
+import { getGame, sendChat, generateTTS, getLatestTrace } from '../api'
 import { SPORTS } from '../config'
 import { useWindowSize } from '../hooks/useWindowSize'
 
@@ -26,6 +26,7 @@ export default function Analysis() {
   const [copied, setCopied] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
   const [costPopoverOpen, setCostPopoverOpen] = useState(false)
+  const [traceUrl, setTraceUrl] = useState(null)
   const audioRef = useRef(null)
   const chatEndRef = useRef(null)
   const costBadgeRef = useRef(null)
@@ -66,6 +67,11 @@ export default function Analysis() {
   useEffect(() => {
     return () => window.speechSynthesis?.cancel()
   }, [result])
+
+  // Fetch LangSmith trace URL
+  useEffect(() => {
+    getLatestTrace().then(data => { if (data.trace_url) setTraceUrl(data.trace_url) })
+  }, [])
 
   // Auto-scroll chat
   useEffect(() => {
@@ -342,6 +348,13 @@ export default function Analysis() {
         <meta property="og:title" content={`${pageTitle} — SportsCast AI`} />
         <meta property="og:description" content={`${sportConfig.label} broadcast analysis powered by multi-agent AI.`} />
         <meta property="og:type" content="website" />
+        <style>{`
+          @media print {
+            body > * { display: none !important; }
+            #print-narrative { display: block !important; }
+            #print-narrative { color: #000; background: #fff; padding: 40px; font-family: Georgia, serif; }
+          }
+        `}</style>
       </Helmet>
 
       <motion.div
@@ -374,14 +387,15 @@ export default function Analysis() {
                 onClick={() => navigate('/')}
                 style={{
                   background: 'none', border: '1px solid #222', borderRadius: '6px',
-                  color: '#555', fontSize: '12px', cursor: 'pointer',
+                  color: '#555', fontSize: '11px', cursor: 'pointer',
                   padding: '6px 12px', fontFamily: 'Inter, sans-serif',
                   letterSpacing: '1px', transition: 'color 0.2s, border-color 0.2s', flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.color = '#FFF'; e.currentTarget.style.borderColor = '#444' }}
                 onMouseLeave={e => { e.currentTarget.style.color = '#555'; e.currentTarget.style.borderColor = '#222' }}
               >
-                Back
+                ← {sportConfig.label} Analyses
               </button>
               <div style={{ minWidth: 0 }}>
                 <div style={{
@@ -441,46 +455,43 @@ export default function Analysis() {
                 {copied ? '✓' : '📋'}
               </motion.button>
 
-              {/* Voice */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                <motion.button
-                  whileHover={{ scale: voiceLoading ? 1 : 1.05 }}
-                  whileTap={{ scale: voiceLoading ? 1 : 0.95 }}
-                  onClick={handleVoice}
-                  disabled={voiceLoading}
-                  title="Read narrative aloud"
-                  animate={isSpeaking ? {
-                    boxShadow: ['0 0 0px transparent', `0 0 10px ${sportConfig.color}40`, '0 0 0px transparent']
-                  } : {}}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                  style={{
-                    width: '32px', height: '32px', borderRadius: '50%',
-                    border: `1px solid ${isSpeaking ? sportConfig.color : '#2A2A2A'}`,
-                    background: isSpeaking ? `${sportConfig.color}20` : 'none',
-                    color: isSpeaking ? sportConfig.color : voiceLoading ? '#444' : '#555',
-                    cursor: voiceLoading ? 'wait' : 'pointer', fontSize: '14px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  {voiceLoading ? (
+              {/* Voice — text labels */}
+              <motion.button
+                whileHover={{ scale: voiceLoading ? 1 : 1.05 }}
+                whileTap={{ scale: voiceLoading ? 1 : 0.95 }}
+                onClick={handleVoice}
+                disabled={voiceLoading}
+                animate={isSpeaking ? {
+                  boxShadow: ['0 0 0px transparent', `0 0 10px ${sportConfig.color}30`, '0 0 0px transparent']
+                } : {}}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                style={{
+                  padding: '4px 12px', fontSize: '11px', fontWeight: 600,
+                  letterSpacing: '1px', borderRadius: '20px',
+                  border: `1px solid ${isSpeaking ? sportConfig.color : '#2A2A2A'}`,
+                  background: isSpeaking ? `${sportConfig.color}15` : 'none',
+                  color: isSpeaking ? sportConfig.color : voiceLoading ? '#444' : '#555',
+                  cursor: voiceLoading ? 'wait' : 'pointer',
+                  fontFamily: 'Inter, sans-serif', transition: 'all 0.2s',
+                  whiteSpace: 'nowrap',
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                }}
+              >
+                {voiceLoading ? (
+                  <>
                     <motion.div
                       animate={{ rotate: 360 }}
                       transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
                       style={{
-                        width: '10px', height: '10px',
-                        border: `2px solid ${sportConfig.color}`,
+                        width: '8px', height: '8px',
+                        border: `1.5px solid currentColor`,
                         borderTopColor: 'transparent', borderRadius: '50%',
                       }}
                     />
-                  ) : isSpeaking ? '⏸' : '🔊'}
-                </motion.button>
-                {usingElevenLabs && (isSpeaking || voiceLoading) && (
-                  <span style={{ fontSize: '8px', color: '#444', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
-                    ElevenLabs
-                  </span>
-                )}
-              </div>
+                    Generating...
+                  </>
+                ) : isSpeaking ? 'Playing... (stop)' : 'AI Commentary'}
+              </motion.button>
 
               {/* Cost badge — clickable popover */}
               <div ref={costBadgeRef} style={{ position: 'relative' }}>
@@ -527,36 +538,89 @@ export default function Analysis() {
                   </motion.div>
                 )}
               </div>
+
+              {/* Export PDF */}
+              {!isMobile && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                  onClick={() => window.print()}
+                  style={{
+                    padding: '4px 12px', fontSize: '11px', fontWeight: 600,
+                    letterSpacing: '1px', borderRadius: '20px',
+                    border: '1px solid #2A2A2A', background: 'none',
+                    color: '#555', cursor: 'pointer',
+                    fontFamily: 'Inter, sans-serif', transition: 'color 0.2s',
+                  }}
+                >
+                  Export PDF
+                </motion.button>
+              )}
+
+              {/* LangSmith trace link */}
+              {traceUrl && !isMobile && (
+                <a
+                  href={traceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: '10px', color: '#555', textDecoration: 'none',
+                    letterSpacing: '0.5px', whiteSpace: 'nowrap',
+                    borderBottom: '1px solid #333', paddingBottom: '1px',
+                  }}
+                >
+                  Pipeline trace →
+                </a>
+              )}
             </div>
           </div>
         </div>
 
-        {/* ── STATS STRIP ── */}
+        {/* ── STATS STRIP — score centered in 48px Bebas Neue ── */}
+        {scoreDisplay && (
+          <div style={{
+            backgroundColor: '#0D0D0D',
+            borderBottom: '1px solid #1A1A1A',
+            padding: isMobile ? '16px' : '20px 40px',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              fontSize: '9px', color: '#444', letterSpacing: '2px',
+              textTransform: 'uppercase', marginBottom: '4px',
+            }}>
+              {sport === 'f1' ? 'RACE RESULT' : 'FINAL SCORE'}
+            </div>
+            <div style={{
+              fontFamily: 'Bebas Neue, sans-serif',
+              fontSize: isMobile ? '36px' : '48px',
+              letterSpacing: '4px', color: '#FFFFFF', lineHeight: 1,
+            }}>
+              {scoreDisplay}
+            </div>
+          </div>
+        )}
+
+        {/* Secondary stats: sport + cost indicator */}
         <div style={{
           backgroundColor: '#0D0D0D',
           borderBottom: '1px solid #1A1A1A',
-          padding: isMobile ? '12px 16px' : '16px 40px',
+          padding: isMobile ? '10px 16px' : '12px 40px',
         }}>
           <div style={{
             maxWidth: '1400px', margin: '0 auto',
-            display: 'flex', gap: isMobile ? '24px' : '48px',
+            display: 'flex', gap: isMobile ? '20px' : '40px', alignItems: 'center',
           }}>
-            {statsItems.map((item, i) => (
-              <div key={i}>
-                <div style={{ fontSize: '9px', color: '#444', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '4px' }}>
-                  {item.label}
-                </div>
-                <div style={{
-                  fontSize: isMobile ? '18px' : '22px',
-                  fontWeight: 700,
-                  color: item.color,
-                  fontFamily: item.label === 'FINAL' ? 'monospace' : 'Inter, sans-serif',
-                  letterSpacing: item.label === 'FINAL' ? '1px' : '0',
-                }}>
-                  {item.value}
-                </div>
+            <div>
+              <div style={{ fontSize: '8px', color: '#333', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '2px' }}>SPORT</div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: sportConfig.color }}>{sportConfig.label}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '8px', color: '#333', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '2px' }}>
+                {cost !== null && cost > 0 ? 'FRESH' : 'CACHED'}
               </div>
-            ))}
+              <div style={{ fontSize: '13px', fontWeight: 600, color: cost !== null && cost > 0 ? '#F59E0B' : '#22C55E' }}>
+                {cost !== null && cost > 0 ? `$${cost.toFixed(4)}` : '$0.00'}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -625,27 +689,28 @@ export default function Analysis() {
             {activeTab === 'narrative' && (
               <motion.div
                 key="narrative"
+                id="print-narrative"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
-                style={{ maxWidth: '760px', margin: '0 auto' }}
+                style={{ maxWidth: '680px', margin: '0 auto' }}
               >
-                {/* Pull quote — first sentence in sport color */}
+                {/* Pull quote — first sentence in sport color, 24px */}
                 {pullQuote && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
                     style={{
-                      fontSize: isMobile ? '18px' : '22px',
+                      fontSize: isMobile ? '19px' : '24px',
                       lineHeight: 1.5,
                       color: sportConfig.color,
                       marginBottom: '32px',
                       fontStyle: 'italic',
                       fontWeight: 300,
                       paddingLeft: '20px',
-                      borderLeft: `3px solid ${sportConfig.color}`,
+                      borderLeft: `4px solid ${sportConfig.color}`,
                       letterSpacing: '0.2px',
                     }}
                   >

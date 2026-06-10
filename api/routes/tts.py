@@ -81,6 +81,7 @@ async def text_to_speech(request: TTSRequest):
             "success": True,
             "fallback": False,
             "audio_base64": audio_base64,
+            "audio": audio_base64,           # alias for test compatibility
             "content_type": "audio/mpeg",
         }
 

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from api.services.job_manager import load_all_jobs_from_disk
-from api.routes import analysis, chat, games, health, discovery, tts
+from api.routes import analysis, chat, games, health, discovery, tts, traces
 
 load_dotenv()
 
@@ -94,6 +94,7 @@ app.include_router(analysis.router, prefix="/analyze", tags=["Analysis"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
 app.include_router(discovery.router, prefix="/discover", tags=["Discovery"])
 app.include_router(tts.router, prefix="/tts", tags=["TTS"])
+app.include_router(traces.router, prefix="/traces", tags=["Traces"])
 
 
 # ─────────────────────────────────────────────

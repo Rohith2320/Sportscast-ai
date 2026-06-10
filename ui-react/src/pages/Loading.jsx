@@ -1,17 +1,17 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Helmet } from 'react-helmet-async'
 import { getJobStatus, API_BASE_URL } from '../api'
 import { SPORTS } from '../config'
 import { useWindowSize } from '../hooks/useWindowSize'
 
 const AGENT_STEPS = [
-  { key: 'fetch',     label: 'Fetching match data',           secsRemaining: 80 },
-  { key: 'match',     label: 'Analyzing match performance',   secsRemaining: 65 },
-  { key: 'player',    label: 'Analyzing player performances', secsRemaining: 50 },
-  { key: 'enrich',    label: 'Enriching with context',        secsRemaining: 30 },
-  { key: 'narrative', label: 'Generating narrative',          secsRemaining: 12 },
+  { key: 'fetch',     label: 'Fetching match data',           secsRemaining: 80, icon: '📡' },
+  { key: 'match',     label: 'Analyzing match performance',   secsRemaining: 65, icon: '📊' },
+  { key: 'player',    label: 'Analyzing player performances', secsRemaining: 50, icon: '👤' },
+  { key: 'enrich',    label: 'Enriching with context',        secsRemaining: 30, icon: '✨' },
+  { key: 'narrative', label: 'Generating narrative',          secsRemaining: 12, icon: '📝' },
 ]
 
 const SPORT_FETCH_MSG = {
@@ -20,6 +20,57 @@ const SPORT_FETCH_MSG = {
   f1:       'Fetching F1 race results and telemetry',
   soccer:   'Fetching match statistics and lineups',
   valorant: 'Fetching VCT match data and round history',
+}
+
+// Parse pipeline error into a human-readable actionable message
+function getHumanError(error, sport) {
+  if (!error) return null
+  const e = error.toLowerCase()
+
+  if (sport === 'nba') {
+    if (e.includes('season has ended') || e.includes('no recent') || e.includes('season')) {
+      return {
+        title: 'NBA Season Has Ended',
+        message: 'The NBA 2025-26 season is over. Browse the cached playoff analyses on the home page, or try a team name that has a cached game.',
+        examples: ['Knicks', 'Celtics', 'Thunder'],
+      }
+    }
+    if (e.includes("team '") || e.includes('not found') || e.includes('try full name')) {
+      return {
+        title: 'Team Not Found',
+        message: 'That team name was not recognized. Try one of these:',
+        examples: ['Knicks', 'Celtics', 'Thunder', 'Lakers', 'Warriors'],
+      }
+    }
+  }
+
+  if (sport === 'f1') {
+    if (e.includes('no race') || e.includes('404') || e.includes('not found') || e.includes('invalid')) {
+      return {
+        title: 'Race Not Found',
+        message: "Try a race name like 'Monaco', 'Canada', or 'Miami' — or use the season/round format.",
+        examples: ['Monaco', 'Canada', 'Miami'],
+      }
+    }
+  }
+
+  if (sport === 'soccer') {
+    return {
+      title: 'Soccer Analysis',
+      message: "Only Premier League matches are currently supported. Try 'latest' for the most recent EPL match.",
+      examples: ['latest', 'premier_league'],
+    }
+  }
+
+  if (sport === 'mlb') {
+    return {
+      title: 'MLB Analysis',
+      message: "Try 'latest' for the most recent game, or enter a specific game ID.",
+      examples: ['latest', '824916'],
+    }
+  }
+
+  return null
 }
 
 export default function Loading() {
@@ -63,7 +114,6 @@ export default function Loading() {
           }))
         } else if (data.type === 'complete') {
           sse.close()
-          // Fetch full result for the match_id navigation target
           getJobStatus(jobId)
             .then(fullJob => {
               setJob(fullJob)
@@ -80,10 +130,7 @@ export default function Loading() {
       } catch {}
     }
 
-    sse.onerror = () => {
-      // SSE dropped — close silently, job still runs server-side
-      sse.close()
-    }
+    sse.onerror = () => { sse.close() }
 
     return () => { sse.close() }
   }, [jobId])
@@ -103,6 +150,7 @@ export default function Loading() {
   const currentStepIndex = completedSteps.length
   const isComplete = job.status === 'complete'
   const isFailed = job.status === 'failed'
+  const humanError = isFailed ? getHumanError(job.error, sport) : null
 
   return (
     <>
@@ -135,14 +183,14 @@ export default function Loading() {
           transition={{ duration: 1.5, ease: 'easeOut' }}
         />
 
-        <div style={{ maxWidth: '560px', width: '100%' }}>
+        <div style={{ maxWidth: '600px', width: '100%' }}>
 
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            style={{ marginBottom: '48px', textAlign: 'center' }}
+            style={{ marginBottom: '40px', textAlign: 'center' }}
           >
             <div style={{
               fontSize: '11px', color: sportConfig.color,
@@ -158,139 +206,245 @@ export default function Loading() {
             }}>
               {isComplete ? 'ANALYSIS READY' : isFailed ? 'ANALYSIS FAILED' : `ANALYZING${dots}`}
             </h1>
-            <p style={{
-              fontSize: isMobile ? '12px' : '13px',
-              color: '#444', marginTop: '12px', letterSpacing: '1px',
-            }}>
-              {isComplete
-                ? 'Redirecting to your analysis...'
-                : isFailed
-                ? (job.error || 'Something went wrong')
-                : 'Multi-agent pipeline running'}
-            </p>
-
-            {!isComplete && !isFailed && (
-              <div style={{ marginTop: '20px' }}>
-                <p style={{ fontSize: '13px', color: '#555', lineHeight: 1.7, margin: '0 0 6px 0' }}>
-                  Our AI pipeline is fetching live match data and generating broadcast-quality analysis.
-                </p>
-                <p style={{ fontSize: '12px', color: '#3A3A3A', margin: 0 }}>
-                  Fresh analysis takes 60-90 seconds. Cached analyses load instantly.
-                </p>
-                {currentStepIndex === 0 && (
-                  <p style={{ fontSize: '12px', color: sportConfig.color, marginTop: '8px', opacity: 0.8 }}>
-                    {SPORT_FETCH_MSG[sport] || SPORT_FETCH_MSG.nba}...
-                  </p>
-                )}
-                {currentStepIndex > 0 && currentStepIndex < AGENT_STEPS.length && (
-                  <p style={{ fontSize: '12px', color: '#444', marginTop: '8px' }}>
-                    Agent{' '}
-                    <span style={{ color: sportConfig.color, fontWeight: 600 }}>
-                      {currentStepIndex}/{AGENT_STEPS.length}
-                    </span>
-                    {' '}complete &middot; ~{AGENT_STEPS[currentStepIndex].secsRemaining}s remaining
-                  </p>
-                )}
-              </div>
+            {!isFailed && (
+              <p style={{
+                fontSize: isMobile ? '12px' : '13px',
+                color: '#444', marginTop: '12px', letterSpacing: '1px',
+              }}>
+                {isComplete
+                  ? 'Redirecting to your analysis...'
+                  : 'Multi-agent pipeline running'}
+              </p>
             )}
           </motion.div>
 
-          {/* Progress bar */}
-          <div style={{
-            width: '100%', height: '3px', backgroundColor: '#1A1A1A',
-            borderRadius: '2px', marginBottom: '32px', overflow: 'hidden',
-          }}>
+          {/* ── PIPELINE VISUALIZATION ── */}
+          {!isFailed && (
             <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
               style={{
-                height: '100%', borderRadius: '2px',
-                backgroundColor: isComplete ? '#22C55E' : sportConfig.color,
+                marginBottom: '32px',
+                padding: isMobile ? '20px 12px' : '24px 32px',
+                backgroundColor: '#0D0D0D',
+                border: '1px solid #1A1A1A',
+                borderRadius: '16px',
               }}
-              animate={{
-                width: isComplete ? '100%' : `${Math.max(5, (completedSteps.length / AGENT_STEPS.length) * 100)}%`,
-                boxShadow: isComplete ? '0 0 8px #22C55E' : `0 0 6px ${sportConfig.color}`,
-              }}
-              transition={{ duration: 0.6, ease: 'easeOut' }}
-            />
-          </div>
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', width: '100%' }}>
+                {AGENT_STEPS.map((step, i) => {
+                  const isDone = completedSteps.includes(step.key)
+                  const isActive = !isDone && i === currentStepIndex
+                  const nodeColor = isDone ? sportConfig.color : isActive ? sportConfig.color : '#1A1A1A'
 
-          {/* Agent steps */}
-          <div style={{
-            backgroundColor: '#0D0D0D', border: '1px solid #1A1A1A',
-            borderRadius: '16px', padding: isMobile ? '20px' : '32px', marginBottom: '32px',
-          }}>
-            {AGENT_STEPS.map((step, i) => {
-              const isDone = completedSteps.includes(step.key)
-              const isActive = !isDone && i === currentStepIndex
+                  return (
+                    <div key={step.key} style={{ display: 'flex', alignItems: 'flex-start', flex: 1 }}>
+                      {/* Node */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                        <motion.div
+                          animate={isActive ? {
+                            boxShadow: [
+                              `0 0 0 0 ${sportConfig.color}40`,
+                              `0 0 0 8px ${sportConfig.color}00`,
+                            ],
+                          } : {}}
+                          transition={{ duration: 1.2, repeat: Infinity }}
+                          style={{
+                            width: '40px', height: '40px', borderRadius: '50%',
+                            backgroundColor: isDone ? sportConfig.color : '#111',
+                            border: `2px solid ${nodeColor}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '16px', transition: 'all 0.4s',
+                            position: 'relative',
+                          }}
+                        >
+                          {isDone ? (
+                            <motion.span
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              style={{ fontSize: '14px', color: '#000', fontWeight: 700 }}
+                            >
+                              ✓
+                            </motion.span>
+                          ) : isActive ? (
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                              style={{
+                                width: '14px', height: '14px',
+                                border: `2px solid ${sportConfig.color}`,
+                                borderTopColor: 'transparent', borderRadius: '50%',
+                              }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: '13px', opacity: 0.3 }}>{step.icon}</span>
+                          )}
+                        </motion.div>
 
-              return (
+                        {/* Label */}
+                        <div style={{
+                          fontSize: isMobile ? '8px' : '9px',
+                          letterSpacing: '0.5px',
+                          textTransform: 'uppercase',
+                          color: isDone ? sportConfig.color : isActive ? '#FFF' : '#333',
+                          marginTop: '8px',
+                          textAlign: 'center',
+                          fontWeight: isDone || isActive ? 600 : 400,
+                          transition: 'color 0.3s',
+                          maxWidth: '50px',
+                        }}>
+                          {isMobile ? step.key : step.icon}
+                        </div>
+                      </div>
+
+                      {/* Connector line */}
+                      {i < AGENT_STEPS.length - 1 && (
+                        <div style={{ flex: 1, marginTop: '19px', padding: '0 4px' }}>
+                          <motion.div
+                            style={{ height: '2px', borderRadius: '1px' }}
+                            animate={{
+                              backgroundColor: isDone ? sportConfig.color : '#1A1A1A',
+                            }}
+                            transition={{ duration: 0.5, delay: 0.1 }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Active step description */}
+              {!isComplete && currentStepIndex < AGENT_STEPS.length && (
                 <motion.div
-                  key={step.key}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.08 }}
+                  key={currentStepIndex}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '16px',
-                    padding: '14px 0',
-                    borderBottom: i < AGENT_STEPS.length - 1 ? '1px solid #111' : 'none',
+                    marginTop: '16px',
+                    paddingTop: '16px',
+                    borderTop: '1px solid #111',
+                    fontSize: '12px',
+                    color: '#555',
+                    textAlign: 'center',
+                    letterSpacing: '0.5px',
                   }}
                 >
-                  <div style={{
-                    width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: isDone ? sportConfig.color : isActive ? '#1A1A1A' : '#0F0F0F',
-                    border: `1px solid ${isDone ? sportConfig.color : isActive ? '#333' : '#1A1A1A'}`,
-                    transition: 'all 0.3s',
-                  }}>
-                    {isDone ? (
-                      <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
-                        style={{ fontSize: '12px', color: '#000', fontWeight: 700 }}>
-                        ✓
-                      </motion.span>
-                    ) : isActive ? (
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                        style={{
-                          width: '12px', height: '12px',
-                          border: `2px solid ${sportConfig.color}`,
-                          borderTopColor: 'transparent', borderRadius: '50%',
-                        }}
-                      />
-                    ) : (
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#2A2A2A' }} />
-                    )}
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontSize: '13px',
-                      fontWeight: isDone ? 500 : isActive ? 600 : 400,
-                      color: isDone ? '#888' : isActive ? '#FFFFFF' : '#333',
-                      transition: 'color 0.3s',
-                    }}>
-                      {step.label}
-                    </div>
-                    {isActive && (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                        style={{ fontSize: '11px', color: sportConfig.color, marginTop: '2px', letterSpacing: '1px' }}>
-                        Running{dots}
-                      </motion.div>
-                    )}
-                  </div>
-
-                  {isDone && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                      style={{ fontSize: '10px', color: '#2A2A2A' }}>
-                      ✓
-                    </motion.div>
+                  {currentStepIndex === 0
+                    ? (SPORT_FETCH_MSG[sport] || SPORT_FETCH_MSG.nba)
+                    : AGENT_STEPS[currentStepIndex]?.label}
+                  {currentStepIndex > 0 && (
+                    <span style={{ color: '#333', marginLeft: '8px' }}>
+                      · Agent <span style={{ color: sportConfig.color }}>{currentStepIndex}/{AGENT_STEPS.length}</span> complete
+                    </span>
                   )}
                 </motion.div>
-              )
-            })}
-          </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Progress bar */}
+          {!isFailed && (
+            <div style={{
+              width: '100%', height: '2px', backgroundColor: '#1A1A1A',
+              borderRadius: '2px', marginBottom: '32px', overflow: 'hidden',
+            }}>
+              <motion.div
+                style={{
+                  height: '100%', borderRadius: '2px',
+                  backgroundColor: isComplete ? '#22C55E' : sportConfig.color,
+                }}
+                animate={{
+                  width: isComplete ? '100%' : `${Math.max(5, (completedSteps.length / AGENT_STEPS.length) * 100)}%`,
+                  boxShadow: isComplete ? '0 0 8px #22C55E' : `0 0 6px ${sportConfig.color}`,
+                }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+              />
+            </div>
+          )}
+
+          {/* ── FAILED STATE — Human readable error ── */}
+          {isFailed && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                backgroundColor: '#0D0D0D',
+                border: '1px solid #2A1A1A',
+                borderRadius: '16px',
+                padding: isMobile ? '20px' : '32px',
+                marginBottom: '24px',
+              }}
+            >
+              {humanError ? (
+                <>
+                  <div style={{ fontSize: '16px', fontWeight: 600, color: '#FFF', marginBottom: '10px' }}>
+                    {humanError.title}
+                  </div>
+                  <p style={{ fontSize: '14px', color: '#888', lineHeight: 1.7, marginBottom: '20px' }}>
+                    {humanError.message}
+                  </p>
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={{ fontSize: '10px', color: '#444', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '10px' }}>
+                      Try these instead
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {humanError.examples.map(ex => (
+                        <button
+                          key={ex}
+                          onClick={() => navigate('/', { state: { prefill: ex, sport } })}
+                          style={{
+                            padding: '8px 16px', fontSize: '12px', fontWeight: 600,
+                            border: `1px solid ${sportConfig.color}40`,
+                            borderRadius: '20px', background: `${sportConfig.color}10`,
+                            color: sportConfig.color, cursor: 'pointer',
+                            fontFamily: 'Inter, sans-serif',
+                          }}
+                        >
+                          {ex}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: '13px', color: '#888', marginBottom: '12px' }}>
+                    Pipeline error:
+                  </div>
+                  <pre style={{
+                    fontSize: '12px', color: '#F87171',
+                    fontFamily: 'monospace', background: '#150808',
+                    padding: '12px', borderRadius: '6px',
+                    whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                    margin: 0,
+                  }}>
+                    {job.error}
+                  </pre>
+                </>
+              )}
+
+              <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <motion.button
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate('/')}
+                  style={{
+                    padding: '12px 24px', fontSize: '12px', fontWeight: 700,
+                    letterSpacing: '2px', textTransform: 'uppercase',
+                    border: `1px solid ${sportConfig.color}`, borderRadius: '8px',
+                    backgroundColor: sportConfig.color, color: '#000',
+                    cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                  }}
+                >
+                  ← Back to Home
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
 
           {/* Progress log */}
-          {job.progress.length > 0 && (
+          {job.progress.length > 0 && !isFailed && (
             <div style={{ marginBottom: '24px' }}>
               {job.progress.slice(-3).map((msg, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
@@ -321,24 +475,6 @@ export default function Loading() {
               </button>
             </div>
           )}
-
-          {/* Failed */}
-          {isFailed && (
-            <div style={{ textAlign: 'center' }}>
-              <button
-                onClick={() => navigate('/')}
-                style={{
-                  padding: '12px 32px', fontSize: '12px', fontWeight: 700,
-                  letterSpacing: '2px', textTransform: 'uppercase',
-                  border: '1px solid #333', borderRadius: '8px',
-                  backgroundColor: 'transparent', color: '#888',
-                  cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                }}>
-                Try Again
-              </button>
-            </div>
-          )}
-
         </div>
       </motion.div>
     </>

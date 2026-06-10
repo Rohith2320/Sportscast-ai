@@ -59,3 +59,12 @@ export const generateTTS = async (text, voiceId) => {
   const res = await API.post('/tts/', { text, voice_id: voiceId || 'JBFqnCBsd6RMkjVDRZzb' })
   return res.data
 }
+
+export const getLatestTrace = async () => {
+  try {
+    const res = await API.get('/traces/latest')
+    return res.data
+  } catch {
+    return { trace_url: null }
+  }
+}

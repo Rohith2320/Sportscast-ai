@@ -6,6 +6,100 @@ from utils.retry import with_retry
 
 BASE_URL = "http://api.jolpi.ca/ergast/f1"
 
+# ── 2026 F1 Calendar — friendly name → "season/round" ──────────────────────
+# Covers country names, city names, GP names, and common abbreviations.
+# Fetched from api.jolpi.ca/ergast/f1/2026.json on 2026-06-10.
+F1_2026_ROUND_LOOKUP: dict[str, str] = {
+    # Round 1: Australian Grand Prix — Melbourne
+    "australia": "2026/1", "australian": "2026/1", "melbourne": "2026/1",
+    "australian gp": "2026/1", "australian grand prix": "2026/1",
+
+    # Round 2: Chinese Grand Prix — Shanghai
+    "china": "2026/2", "chinese": "2026/2", "shanghai": "2026/2",
+    "chinese gp": "2026/2", "chinese grand prix": "2026/2",
+
+    # Round 3: Japanese Grand Prix — Suzuka
+    "japan": "2026/3", "japanese": "2026/3", "suzuka": "2026/3",
+    "japanese gp": "2026/3", "japanese grand prix": "2026/3",
+
+    # Round 4: Miami Grand Prix
+    "miami": "2026/4", "miami gp": "2026/4", "miami grand prix": "2026/4",
+
+    # Round 5: Canadian Grand Prix — Montreal
+    "canada": "2026/5", "canadian": "2026/5", "montreal": "2026/5",
+    "canadian gp": "2026/5", "canadian grand prix": "2026/5",
+
+    # Round 6: Monaco Grand Prix — Monte Carlo
+    "monaco": "2026/6", "monte carlo": "2026/6",
+    "monaco gp": "2026/6", "monaco grand prix": "2026/6",
+
+    # Round 7: Barcelona Grand Prix — Barcelona, Spain
+    "barcelona": "2026/7", "barcelona gp": "2026/7", "barcelona grand prix": "2026/7",
+
+    # Round 8: Austrian Grand Prix — Spielberg (Red Bull Ring)
+    "austria": "2026/8", "austrian": "2026/8", "spielberg": "2026/8",
+    "red bull ring": "2026/8",
+    "austrian gp": "2026/8", "austrian grand prix": "2026/8",
+
+    # Round 9: British Grand Prix — Silverstone
+    "britain": "2026/9", "british": "2026/9", "silverstone": "2026/9", "uk": "2026/9",
+    "british gp": "2026/9", "british grand prix": "2026/9",
+
+    # Round 10: Belgian Grand Prix — Spa
+    "belgium": "2026/10", "belgian": "2026/10", "spa": "2026/10",
+    "belgian gp": "2026/10", "belgian grand prix": "2026/10",
+
+    # Round 11: Hungarian Grand Prix — Budapest
+    "hungary": "2026/11", "hungarian": "2026/11", "budapest": "2026/11",
+    "hungarian gp": "2026/11", "hungarian grand prix": "2026/11",
+
+    # Round 12: Dutch Grand Prix — Zandvoort
+    "netherlands": "2026/12", "dutch": "2026/12", "zandvoort": "2026/12",
+    "holland": "2026/12",
+    "dutch gp": "2026/12", "dutch grand prix": "2026/12",
+
+    # Round 13: Italian Grand Prix — Monza
+    "italy": "2026/13", "italian": "2026/13", "monza": "2026/13",
+    "italian gp": "2026/13", "italian grand prix": "2026/13",
+
+    # Round 14: Spanish Grand Prix — Madrid (NOT Barcelona)
+    "spain": "2026/14", "spanish": "2026/14", "madrid": "2026/14",
+    "spanish gp": "2026/14", "spanish grand prix": "2026/14",
+
+    # Round 15: Azerbaijan Grand Prix — Baku
+    "azerbaijan": "2026/15", "baku": "2026/15",
+    "azerbaijan gp": "2026/15", "azerbaijan grand prix": "2026/15",
+
+    # Round 16: Singapore Grand Prix — Marina Bay
+    "singapore": "2026/16", "marina bay": "2026/16",
+    "singapore gp": "2026/16", "singapore grand prix": "2026/16",
+
+    # Round 17: United States Grand Prix — Austin / COTA
+    "united states": "2026/17", "usa": "2026/17", "austin": "2026/17", "cota": "2026/17",
+    "us gp": "2026/17", "united states gp": "2026/17", "united states grand prix": "2026/17",
+
+    # Round 18: Mexico City Grand Prix
+    "mexico": "2026/18", "mexico city": "2026/18",
+    "mexico gp": "2026/18", "mexico grand prix": "2026/18",
+
+    # Round 19: Brazilian Grand Prix — Sao Paulo / Interlagos
+    "brazil": "2026/19", "brazilian": "2026/19", "sao paulo": "2026/19",
+    "interlagos": "2026/19",
+    "brazilian gp": "2026/19", "brazilian grand prix": "2026/19",
+
+    # Round 20: Las Vegas Grand Prix
+    "las vegas": "2026/20", "vegas": "2026/20",
+    "las vegas gp": "2026/20", "las vegas grand prix": "2026/20",
+
+    # Round 21: Qatar Grand Prix — Lusail
+    "qatar": "2026/21", "lusail": "2026/21",
+    "qatar gp": "2026/21", "qatar grand prix": "2026/21",
+
+    # Round 22: Abu Dhabi Grand Prix — Yas Marina
+    "abu dhabi": "2026/22", "yas marina": "2026/22",
+    "abu dhabi gp": "2026/22", "abu dhabi grand prix": "2026/22",
+}
+
 
 def safe_fetch(url: str, label: str) -> dict:
     """
@@ -304,11 +398,18 @@ def f1_fetch_node(state: SportsCastState) -> dict:
     try:
         if not match_id or match_id == "latest":
             raw_data = fetch_race_weekend("current", "last")
-        elif "/" in match_id:
-            parts = match_id.split("/")
-            raw_data = fetch_race_weekend(parts[0], parts[1])
         else:
-            raw_data = fetch_race_weekend("current", match_id)
+            # Resolve friendly name (e.g. "monaco" → "2026/6") before hitting API
+            resolved = F1_2026_ROUND_LOOKUP.get(match_id.lower().strip())
+            if resolved:
+                print(f"Resolved '{match_id}' → {resolved}")
+                match_id = resolved
+
+            if "/" in match_id:
+                parts = match_id.split("/")
+                raw_data = fetch_race_weekend(parts[0], parts[1])
+            else:
+                raw_data = fetch_race_weekend("current", match_id)
 
         print(f"Fetched: {raw_data['race_name']} ({raw_data['date']})")
         print(f"Practice sessions: FP1={len(raw_data['practice_1'])} "

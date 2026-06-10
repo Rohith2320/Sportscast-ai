@@ -139,7 +139,11 @@ def find_latest_nba_game() -> tuple[str, str]:
         # Fall back to any game from 'latest'
         latest = result.get("latest", [])
         if not latest:
-            raise ValueError("No recent NBA games found")
+            raise ValueError(
+                "NBA 2025-26 season has ended. Next season starts October 2026. "
+                "Browse the cached playoff analyses on the home page, or try a team "
+                "name like 'Knicks' or 'Celtics'."
+            )
         featured = latest[0]
 
     game_id = featured["game_id"]

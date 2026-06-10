@@ -159,6 +159,20 @@ def list_cached_games(sport: str = None) -> list[dict]:
             match_date = raw.get("date")
         # NBA raw_match_data doesn't include date; leave as None (use cached_at)
 
+        # Extract first sentence of narrative for card previews
+        narrative_excerpt = ""
+        narrative_text = cache_data["state"].get("narrative", "") or ""
+        for line in narrative_text.split("\n"):
+            line = line.strip()
+            if line and not line.startswith("#"):
+                for i, ch in enumerate(line):
+                    if ch in ".!?" and i < 200:
+                        narrative_excerpt = line[:i + 1].strip()
+                        break
+                if not narrative_excerpt:
+                    narrative_excerpt = line[:150].strip()
+                break
+
         cached.append({
             "game_id": cache_data["game_id"],
             "sport": cache_data["sport"],
@@ -167,6 +181,7 @@ def list_cached_games(sport: str = None) -> list[dict]:
             "has_narrative": bool(cache_data["state"].get("narrative")),
             "title": title,
             "match_date": match_date,
+            "narrative_excerpt": narrative_excerpt or None,
         })
 
     cached.sort(key=lambda x: x["cached_at"], reverse=True)
