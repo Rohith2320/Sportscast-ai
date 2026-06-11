@@ -198,6 +198,45 @@ export default function Analysis() {
     })
   }
 
+  const handleExportPDF = () => {
+    const narrative = result?.narrative || ''
+    const title = result?.match_id || gameId || 'SportsCast AI'
+    const sportLabel = sportConfig?.label || sport.toUpperCase()
+    const accentColor = sportConfig?.color || '#3B82F6'
+    const escaped = narrative
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    const htmlLines = escaped.split('\n').map(line => {
+      const trimmed = line.trim()
+      if (!trimmed) return '<br>'
+      if (trimmed.startsWith('# ')) return `<h1>${trimmed.slice(2)}</h1>`
+      if (trimmed.startsWith('## ')) return `<h2>${trimmed.slice(3)}</h2>`
+      if (trimmed.startsWith('### ')) return `<h3>${trimmed.slice(4)}</h3>`
+      return `<p>${trimmed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\*(.*?)\*/g, '<em>$1</em>')}</p>`
+    }).join('\n')
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>${sportLabel} Analysis — ${title}</title>
+<style>
+  body { font-family: Georgia, serif; color: #111; background: #fff; max-width: 680px; margin: 40px auto; padding: 0 20px; line-height: 1.8; font-size: 15px; }
+  h1 { font-size: 28px; margin-bottom: 8px; }
+  h2 { font-size: 18px; color: ${accentColor}; margin-top: 32px; margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; font-family: sans-serif; }
+  h3 { font-size: 14px; color: ${accentColor}; margin-top: 24px; text-transform: uppercase; font-family: sans-serif; }
+  p { margin: 0 0 16px; }
+  .meta { font-family: sans-serif; font-size: 12px; color: #777; margin-bottom: 32px; }
+  @media print { body { margin: 0; } }
+</style></head><body>
+<div class="meta">${sportLabel.toUpperCase()} · SportsCast AI · ${new Date().toLocaleDateString()}</div>
+${htmlLines}
+</body></html>`
+    const w = window.open('', '_blank')
+    if (!w) return
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    setTimeout(() => { w.print() }, 400)
+  }
+
   const formatNarrative = (text) => {
     if (!text) return []
     const lines = text.split('\n')
@@ -349,13 +388,7 @@ export default function Analysis() {
         <meta property="og:title" content={`${pageTitle} — SportsCast AI`} />
         <meta property="og:description" content={`${sportConfig.label} broadcast analysis powered by multi-agent AI.`} />
         <meta property="og:type" content="website" />
-        <style>{`
-          @media print {
-            body > * { display: none !important; }
-            #print-narrative { display: block !important; }
-            #print-narrative { color: #000; background: #fff; padding: 40px; font-family: Georgia, serif; }
-          }
-        `}</style>
+        <style>{`@media print { body { display: none; } }`}</style>
       </Helmet>
 
       <motion.div
@@ -529,9 +562,9 @@ export default function Analysis() {
                       {cost !== null && cost > 0 ? `$${cost.toFixed(4)}` : '$0.00'}
                     </div>
                     <div style={{ fontSize: '11px', color: '#555', lineHeight: 2 }}>
-                      <div>Match + Player <span style={{ color: '#444', float: 'right' }}>claude-sonnet-4-6</span></div>
-                      <div>Narrative <span style={{ color: '#444', float: 'right' }}>claude-opus-4-8</span></div>
-                      <div>Chat <span style={{ color: '#444', float: 'right' }}>gpt-4o-mini</span></div>
+                      <div>Match + Player <span style={{ color: '#666', float: 'right' }}>claude-sonnet-4-6</span></div>
+                      <div>Narrative <span style={{ color: '#666', float: 'right' }}>claude-opus-4-8</span></div>
+                      <div>Chat <span style={{ color: '#666', float: 'right' }}>gpt-4o-mini</span></div>
                     </div>
                     <div style={{ fontSize: '10px', color: '#666', marginTop: '12px', borderTop: '1px solid #1A1A1A', paddingTop: '10px' }}>
                       Chat responses billed separately per message.
@@ -544,7 +577,7 @@ export default function Analysis() {
               {!isMobile && (
                 <motion.button
                   whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                  onClick={() => window.print()}
+                  onClick={handleExportPDF}
                   style={{
                     padding: '4px 12px', fontSize: '11px', fontWeight: 600,
                     letterSpacing: '1px', borderRadius: '20px',
@@ -806,7 +839,7 @@ export default function Analysis() {
                     })}
                   </div>
                 ) : (
-                  <p style={{ color: '#444' }}>No match analysis available.</p>
+                  <p style={{ color: '#666' }}>No match analysis available.</p>
                 )}
               </motion.div>
             )}
@@ -850,7 +883,7 @@ export default function Analysis() {
                         </div>
                       )
                       if (line.startsWith('TEAM:')) return (
-                        <div key={i} style={{ fontSize: '11px', color: '#444', letterSpacing: '1px', textTransform: 'uppercase', margin: '2px 0' }}>
+                        <div key={i} style={{ fontSize: '11px', color: '#666', letterSpacing: '1px', textTransform: 'uppercase', margin: '2px 0' }}>
                           {line.slice(5).trim()}
                         </div>
                       )
@@ -880,7 +913,7 @@ export default function Analysis() {
                     })}
                   </div>
                 ) : (
-                  <p style={{ color: '#444' }}>No player analysis available.</p>
+                  <p style={{ color: '#666' }}>No player analysis available.</p>
                 )}
               </motion.div>
             )}
@@ -935,7 +968,7 @@ export default function Analysis() {
                 {/* Chat messages */}
                 <div style={{ minHeight: '200px', marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {chatHistory.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '48px 0', color: '#333', fontSize: '14px' }}>
+                    <div style={{ textAlign: 'center', padding: '48px 0', color: '#666', fontSize: '14px' }}>
                       Ask anything about this game
                     </div>
                   )}
@@ -1120,81 +1153,70 @@ function NoDataPlaceholder({ sport, color }) {
   )
 }
 
-// NBA SHOT CHART
+// NBA TOP SCORERS BAR CHART
 function NBAViz({ result, color }) {
   const raw = result?.raw_match_data || {}
-  const players = raw.players || raw.home_players || raw.away_players || []
-  const allPlayers = [
-    ...(raw.home_players || []),
-    ...(raw.away_players || []),
-    ...(raw.players || []),
-  ]
+  const ps = raw.player_stats || {}
+  const headers = ps.headers || []
+  const rows = ps.data || []
 
-  if (allPlayers.length === 0) {
+  const nameIdx = headers.indexOf('PLAYER_NAME')
+  const ptsIdx = headers.indexOf('PTS')
+  const fgmIdx = headers.indexOf('FGM')
+  const fg3mIdx = headers.indexOf('FG3M')
+
+  if (rows.length === 0 || nameIdx === -1 || ptsIdx === -1) {
     return <NoDataPlaceholder sport="NBA" color={color} />
   }
 
-  const COURT_W = 500
-  const COURT_H = 300
+  const players = rows
+    .map(r => ({
+      name: r[nameIdx] || '',
+      pts: parseInt(r[ptsIdx] ?? 0, 10),
+      fgm: parseInt(r[fgmIdx] ?? 0, 10),
+      fg3m: parseInt(r[fg3mIdx] ?? 0, 10),
+    }))
+    .filter(p => p.pts > 0)
+    .sort((a, b) => b.pts - a.pts)
+    .slice(0, 10)
 
-  const shotZones = []
-  allPlayers.forEach(p => {
-    const fg3m = parseInt(p.fg3m || p.FG3M || 0, 10)
-    const fgm = parseInt(p.fgm || p.FGM || 0, 10)
-    const layups = Math.max(0, fgm - fg3m - Math.floor(fgm * 0.3))
-    const midrange = Math.floor(fgm * 0.3)
+  if (players.length === 0) return <NoDataPlaceholder sport="NBA" color={color} />
 
-    for (let i = 0; i < fg3m && i < 3; i++) {
-      const angle = (Math.random() * 160 + 10) * (Math.PI / 180)
-      const dist = 200 + Math.random() * 40
-      shotZones.push({ x: COURT_W / 2 + Math.cos(angle) * dist, y: COURT_H - 80 + Math.sin(angle) * 60, type: '3pt' })
-    }
-    for (let i = 0; i < midrange && i < 2; i++) {
-      shotZones.push({
-        x: 120 + Math.random() * 260, y: 80 + Math.random() * 100, type: 'mid',
-      })
-    }
-    for (let i = 0; i < layups && i < 2; i++) {
-      shotZones.push({ x: 220 + Math.random() * 60, y: COURT_H - 30 + Math.random() * 20, type: 'layup' })
-    }
-  })
-
-  const dotColor = { '3pt': color, 'mid': '#FFFFFF80', 'layup': '#FFFFFF' }
+  const maxPts = Math.max(...players.map(p => p.pts), 1)
+  const W = 480, rowH = 28, PAD_L = 112, PAD_R = 36
+  const H = players.length * rowH + 50
 
   return (
     <div>
-      <VisHeader title="Shot Distribution" color={color}
-        tooltip="Each dot represents an estimated shot based on player FGM and FG3M stats. 3-pointers shown in sport color, layups white, mid-range gray." />
+      <VisHeader title="Top Scorers" color={color}
+        tooltip="Horizontal bars show points scored. The colored segment shows points from 3-pointers." />
       <div style={{ overflowX: 'auto' }}>
-        <svg width={COURT_W} height={COURT_H} style={{ background: '#0D0D0D', borderRadius: '12px', maxWidth: '100%' }}>
-          {/* Court outline */}
-          <rect x={20} y={20} width={COURT_W - 40} height={COURT_H - 40} rx={8} fill="none" stroke="#222" strokeWidth={1} />
-          {/* Paint */}
-          <rect x={185} y={COURT_H - 60} width={130} height={80} fill="none" stroke="#1A1A1A" strokeWidth={1} />
-          {/* 3-point arc approx */}
-          <path d={`M 80 ${COURT_H} Q ${COURT_W / 2} 30 ${COURT_W - 80} ${COURT_H}`} fill="none" stroke="#1A1A1A" strokeWidth={1} />
-          {/* Basket */}
-          <circle cx={COURT_W / 2} cy={COURT_H - 20} r={6} fill="none" stroke="#333" strokeWidth={1.5} />
-
-          {/* Shot dots */}
-          {shotZones.map((dot, i) => (
-            <motion.circle
-              key={i}
-              cx={dot.x}
-              cy={dot.y}
-              r={5}
-              fill={dotColor[dot.type]}
-              opacity={0}
-              animate={{ opacity: 0.75 }}
-              transition={{ delay: i * 0.06, duration: 0.4 }}
-            />
-          ))}
+        <svg width={W} height={H} style={{ background: '#0D0D0D', borderRadius: '12px', maxWidth: '100%' }}>
+          {players.map((p, i) => {
+            const barMaxW = W - PAD_L - PAD_R
+            const barW = Math.max(4, (p.pts / maxPts) * barMaxW)
+            const pts3W = p.pts > 0 ? Math.max(0, (p.fg3m * 3 / p.pts) * barW) : 0
+            const y = 24 + i * rowH
+            return (
+              <g key={i}>
+                <text x={PAD_L - 8} y={y + 11} fontSize={9} fill="#888" textAnchor="end">
+                  {p.name.length > 14 ? p.name.slice(0, 14) : p.name}
+                </text>
+                <rect x={PAD_L} y={y} width={barMaxW} height={16} fill="#111" rx={3} />
+                <motion.rect x={PAD_L} y={y} width={0} height={16} fill="#FFFFFF30" rx={3}
+                  animate={{ width: barW }} transition={{ delay: i * 0.07, duration: 0.5, ease: 'easeOut' }} />
+                <motion.rect x={PAD_L} y={y} width={0} height={16} fill={color} rx={3}
+                  animate={{ width: pts3W }} transition={{ delay: i * 0.07 + 0.1, duration: 0.4, ease: 'easeOut' }} />
+                <text x={PAD_L + barMaxW + 6} y={y + 11} fontSize={10} fill="#CCC">{p.pts}</text>
+              </g>
+            )
+          })}
         </svg>
       </div>
       <div style={{ display: 'flex', gap: '16px', marginTop: '12px', flexWrap: 'wrap' }}>
-        {[['3pt', color, '3-Pointers'], ['mid', '#FFFFFF80', 'Mid-Range'], ['layup', '#FFFFFF', 'Layups/Paint']].map(([k, c, lbl]) => (
-          <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: c }} />
+        {[['#FFFFFF30', 'Total Points'], [color, '3-Pointer Points']].map(([c, lbl]) => (
+          <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '10px', height: '4px', borderRadius: '1px', backgroundColor: c }} />
             <span style={{ fontSize: '11px', color: '#666' }}>{lbl}</span>
           </div>
         ))}
@@ -1206,23 +1228,22 @@ function NBAViz({ result, color }) {
 // F1 POSITION TIMELINE
 function F1Viz({ result, color }) {
   const raw = result?.raw_match_data || {}
-  const qualResults = raw.qualifying_results || raw.grid || []
-  const raceResults = raw.race_results || raw.results || []
+  const raceResults = raw.results || []
+  const qualResults = raw.qualifying || []
 
   if (raceResults.length === 0) {
     return <NoDataPlaceholder sport="F1" color={color} />
   }
 
   const drivers = raceResults.slice(0, 10).map((r, i) => {
-    const name = r.driver || r.name || r.Driver?.familyName || `P${i + 1}`
+    const name = r.Driver?.familyName || r.Driver?.code || `P${i + 1}`
     const shortName = name.length > 8 ? name.slice(0, 8) : name
+    const endPos = parseInt(r.position || i + 1, 10)
     const startPos = (() => {
-      const q = qualResults.find(q =>
-        (q.driver || q.Driver?.familyName || '').toLowerCase().includes(name.toLowerCase().slice(0, 4))
-      )
-      return q ? parseInt(q.position || q.Position || i + 1, 10) : i + 1
+      const driverId = r.Driver?.driverId || ''
+      const q = qualResults.find(q => q.Driver?.driverId === driverId)
+      return q ? parseInt(q.position || endPos, 10) : endPos
     })()
-    const endPos = parseInt(r.position || r.Position || i + 1, 10)
     return { name: shortName, startPos, endPos }
   })
 
@@ -1280,24 +1301,22 @@ function F1Viz({ result, color }) {
 // SOCCER INCIDENT TIMELINE
 function SoccerViz({ result, color }) {
   const raw = result?.raw_match_data || {}
-  const incidents = raw.incidents || raw.events || raw.goals_and_cards || []
+  const incidents = raw.incidents || []
+  const homeTeam = raw.home_team || 'Home'
+  const awayTeam = raw.away_team || 'Away'
 
   if (incidents.length === 0) {
     return <NoDataPlaceholder sport="Soccer" color={color} />
   }
 
-  const filtered = incidents.filter(e => e.minute !== undefined || e.time !== undefined).slice(0, 20)
+  const filtered = incidents.filter(e => e.minute != null).slice(0, 20)
+  if (filtered.length === 0) return <NoDataPlaceholder sport="Soccer" color={color} />
 
-  if (filtered.length === 0) {
-    return <NoDataPlaceholder sport="Soccer" color={color} />
-  }
-
-  const W = 480, H = Math.max(300, filtered.length * 40 + 60)
-  const timelineX = 60, markerX = 60
+  const W = 480, H = Math.max(300, filtered.length * 36 + 60)
 
   const getIcon = (type) => {
     const t = (type || '').toLowerCase()
-    if (t.includes('goal') || t.includes('score')) return '⚽'
+    if (t.includes('goal')) return '⚽'
     if (t.includes('yellow')) return '🟨'
     if (t.includes('red')) return '🟥'
     if (t.includes('sub')) return '🔄'
@@ -1310,31 +1329,32 @@ function SoccerViz({ result, color }) {
         tooltip="Events plotted at their match minute. ⚽ = Goal, 🟨 = Yellow card, 🟥 = Red card, 🔄 = Substitution." />
       <div style={{ overflowX: 'auto' }}>
         <svg width={W} height={H} style={{ background: '#0D0D0D', borderRadius: '12px', maxWidth: '100%' }}>
-          {/* Vertical timeline line */}
-          <line x1={timelineX} y1={30} x2={timelineX} y2={H - 20} stroke="#222" strokeWidth={1.5} />
-
+          <line x1={60} y1={30} x2={60} y2={H - 20} stroke="#222" strokeWidth={1.5} />
           {filtered.map((ev, i) => {
-            const minute = ev.minute || ev.time || 0
-            const label = `${minute}'`
-            const team = ev.team || ev.side || ''
-            const player = ev.player || ev.name || ''
-            const type = ev.type || ev.event_type || 'goal'
-            const icon = getIcon(type)
+            const teamName = ev.is_home ? homeTeam : awayTeam
+            const player = ev.player || ''
+            const icon = getIcon(ev.type)
             const y = 40 + i * 36
-            const isHome = (team || '').toLowerCase().includes('home') || i % 2 === 0
-
             return (
               <motion.g key={i} opacity={0} animate={{ opacity: 1 }} transition={{ delay: i * 0.07, duration: 0.4 }}>
-                <circle cx={timelineX} cy={y} r={5} fill={color} />
-                <text x={timelineX - 10} y={y + 4} fontSize={10} fill="#888" textAnchor="end">{label}</text>
-                <text x={timelineX + 12} y={y + 4} fontSize={14} textAnchor="start">{icon}</text>
-                <text x={timelineX + 30} y={y + 4} fontSize={10} fill="#CCC" textAnchor="start">
-                  {player.slice(0, 20)}{team ? ` · ${team.slice(0, 12)}` : ''}
+                <circle cx={60} cy={y} r={5} fill={ev.is_home ? color : '#FFFFFF50'} />
+                <text x={48} y={y + 4} fontSize={10} fill="#888" textAnchor="end">{ev.minute}'</text>
+                <text x={72} y={y + 4} fontSize={13} textAnchor="start">{icon}</text>
+                <text x={92} y={y + 4} fontSize={10} fill="#CCC" textAnchor="start">
+                  {player.slice(0, 18)}{teamName ? ` · ${teamName.slice(0, 14)}` : ''}
                 </text>
               </motion.g>
             )
           })}
         </svg>
+      </div>
+      <div style={{ display: 'flex', gap: '16px', marginTop: '12px' }}>
+        {[[color, homeTeam, 'Home'], ['#FFFFFF50', awayTeam, 'Away']].map(([c, t, side]) => (
+          <div key={side} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: c }} />
+            <span style={{ fontSize: '11px', color: '#666' }}>{t} ({side})</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -1343,18 +1363,18 @@ function SoccerViz({ result, color }) {
 // MLB LINESCORE BAR CHART
 function MLBViz({ result, color }) {
   const raw = result?.raw_match_data || {}
-  const linescore = raw.linescore || raw.innings || []
-  const homeTeam = raw.home_team || raw.home || 'Home'
-  const awayTeam = raw.away_team || raw.away || 'Away'
+  const inningData = raw.innings || []
+  const homeTeam = raw.home_team || 'Home'
+  const awayTeam = raw.away_team || 'Away'
 
-  if (linescore.length === 0) {
+  if (inningData.length === 0) {
     return <NoDataPlaceholder sport="MLB" color={color} />
   }
 
-  const innings = linescore.slice(0, 9)
+  const innings = inningData.slice(0, 9)
   const maxRuns = Math.max(1, ...innings.map(i => Math.max(
-    parseInt(i.home || i.home_runs || i.H || 0, 10),
-    parseInt(i.away || i.away_runs || i.A || 0, 10),
+    parseInt(i.home?.runs ?? 0, 10),
+    parseInt(i.away?.runs ?? 0, 10),
   )))
 
   const W = 480, H = 200, PAD_L = 30, PAD_B = 40
@@ -1378,8 +1398,8 @@ function MLBViz({ result, color }) {
           <text x={PAD_L + innings.length * barGroupW / 2} y={H} fontSize={8} fill="#444" textAnchor="middle">INNING</text>
 
           {innings.map((inn, i) => {
-            const homeRuns = parseInt(inn.home || inn.home_runs || inn.H || 0, 10)
-            const awayRuns = parseInt(inn.away || inn.away_runs || inn.A || 0, 10)
+            const homeRuns = parseInt(inn.home?.runs ?? 0, 10)
+            const awayRuns = parseInt(inn.away?.runs ?? 0, 10)
             const homeH = homeRuns > 0 ? Math.max(4, (homeRuns / maxRuns) * chartH) : 0
             const awayH = awayRuns > 0 ? Math.max(4, (awayRuns / maxRuns) * chartH) : 0
             const x = PAD_L + i * barGroupW + (barGroupW - barW * 2 - 2) / 2
@@ -1404,88 +1424,80 @@ function MLBViz({ result, color }) {
         </svg>
       </div>
       <div style={{ display: 'flex', gap: '16px', marginTop: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: color }} />
-          <span style={{ fontSize: '11px', color: '#666' }}>{homeTeam} (Home)</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: '#FFFFFF40' }} />
-          <span style={{ fontSize: '11px', color: '#666' }}>{awayTeam} (Away)</span>
-        </div>
+        {[[color, homeTeam, 'Home'], ['#FFFFFF40', awayTeam, 'Away']].map(([c, t, side]) => (
+          <div key={side} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: c }} />
+            <span style={{ fontSize: '11px', color: '#666' }}>{t} ({side})</span>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-// VALORANT ROUND TIMELINE
+// VALORANT SERIES SCORE VISUALIZATION
 function ValorantViz({ result, color }) {
   const raw = result?.raw_match_data || {}
-  const rounds = raw.rounds || raw.round_results || raw.score_progression || []
-  const team1 = raw.team1 || raw.teams?.[0]?.name || 'Team A'
-  const team2 = raw.team2 || raw.teams?.[1]?.name || 'Team B'
+  const team1 = raw.team1_name || 'Team A'
+  const team2 = raw.team2_name || 'Team B'
+  const t1Score = parseInt(raw.team1_score ?? 0, 10)
+  const t2Score = parseInt(raw.team2_score ?? 0, 10)
+  const winnerScore = parseInt(raw.winner_score ?? Math.max(t1Score, t2Score), 10)
+  const loserScore = parseInt(raw.loser_score ?? Math.min(t1Score, t2Score), 10)
+  const totalMaps = winnerScore + loserScore
 
-  if (rounds.length === 0) {
+  if (totalMaps === 0) {
     return <NoDataPlaceholder sport="Valorant" color={color} />
   }
 
-  const W = 500, H = 200, PAD = 40
-  const chartW = W - PAD * 2, chartH = H - PAD * 2
-  const totalRounds = rounds.length
+  const t1Won = t1Score >= t2Score
+  const winner = t1Won ? team1 : team2
+  const loser = t1Won ? team2 : team1
 
-  let t1Score = 0, t2Score = 0
-  const points = rounds.map((r, i) => {
-    const winner = r.winner || r.winning_team || (i % 2 === 0 ? 't1' : 't2')
-    if (winner === 't1' || winner === team1 || winner === '1') t1Score++
-    else t2Score++
-    return { i, t1: t1Score, t2: t2Score }
-  })
-
-  const maxScore = Math.max(...points.map(p => Math.max(p.t1, p.t2)), 1)
-
-  const toX = (i) => PAD + (i / (totalRounds - 1 || 1)) * chartW
-  const toY = (score) => PAD + chartH - (score / maxScore) * chartH
-
-  const path1 = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toY(p.t1)}`).join(' ')
-  const path2 = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toY(p.t2)}`).join(' ')
-
-  const halftimeX = totalRounds >= 24 ? toX(11) : toX(Math.floor(totalRounds / 2))
+  const circleR = 24, gap = 12
+  const totalW = totalMaps * (circleR * 2 + gap) - gap
+  const W = Math.max(300, totalW + 80), H = 170
+  const startX = (W - totalW) / 2
 
   return (
     <div>
-      <VisHeader title="Round Score Progression" color={color}
-        tooltip="Line chart of cumulative score per team across all rounds. The dashed vertical line marks the halftime map switch." />
+      <VisHeader title="Series Score" color={color}
+        tooltip="Each circle represents one map played. Filled circles are maps won by the series winner." />
       <div style={{ overflowX: 'auto' }}>
         <svg width={W} height={H} style={{ background: '#0D0D0D', borderRadius: '12px', maxWidth: '100%' }}>
-          {/* Halftime line */}
-          <line x1={halftimeX} y1={PAD} x2={halftimeX} y2={H - PAD} stroke="#333" strokeWidth={1} strokeDasharray="4 3" />
-          <text x={halftimeX} y={PAD - 5} fontSize={8} fill="#444" textAnchor="middle">HALF</text>
-
-          {/* Team 2 line */}
-          <motion.path d={path2} fill="none" stroke="#FFFFFF40" strokeWidth={1.5}
-            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, ease: 'easeOut' }} />
-
-          {/* Team 1 line */}
-          <motion.path d={path1} fill="none" stroke={color} strokeWidth={2}
-            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, ease: 'easeOut' }} />
-
-          {/* Current scores */}
-          {points.length > 0 && (
-            <>
-              <circle cx={toX(points.length - 1)} cy={toY(points[points.length - 1].t1)} r={4} fill={color} />
-              <circle cx={toX(points.length - 1)} cy={toY(points[points.length - 1].t2)} r={4} fill="#FFFFFF40" />
-            </>
-          )}
+          <text x={W / 2} y={22} fontSize={10} fill="#555" textAnchor="middle">
+            {winner} {winnerScore} – {loserScore} {loser}
+          </text>
+          {Array.from({ length: totalMaps }, (_, i) => {
+            const isWin = i < winnerScore
+            const cx = startX + i * (circleR * 2 + gap) + circleR
+            const cy = 80
+            return (
+              <motion.g key={i} opacity={0} animate={{ opacity: 1 }} transition={{ delay: i * 0.18, duration: 0.4 }}>
+                <circle cx={cx} cy={cy} r={circleR}
+                  fill={isWin ? color : '#1A1A1A'}
+                  stroke={isWin ? color : '#333'}
+                  strokeWidth={1.5}
+                />
+                <text x={cx} y={cy + 5} fontSize={11} fill={isWin ? '#000' : '#555'} textAnchor="middle" fontWeight="bold">
+                  {i + 1}
+                </text>
+              </motion.g>
+            )
+          })}
+          <text x={W / 2} y={136} fontSize={14} fill="#FFF" textAnchor="middle" fontWeight="bold">
+            {winnerScore} – {loserScore}
+          </text>
+          <text x={W / 2} y={152} fontSize={9} fill="#555" textAnchor="middle">MAPS WON</text>
         </svg>
       </div>
-      <div style={{ display: 'flex', gap: '16px', marginTop: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ width: '10px', height: '3px', backgroundColor: color, borderRadius: '1px' }} />
-          <span style={{ fontSize: '11px', color: '#666' }}>{team1}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ width: '10px', height: '3px', backgroundColor: '#FFFFFF40', borderRadius: '1px' }} />
-          <span style={{ fontSize: '11px', color: '#666' }}>{team2}</span>
-        </div>
+      <div style={{ display: 'flex', gap: '16px', marginTop: '12px', justifyContent: 'center' }}>
+        {[[color, winner, 'Winner'], ['#1A1A1A', loser, '']].map(([c, t, label]) => (
+          <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: c, border: `1.5px solid ${c === '#1A1A1A' ? '#333' : c}` }} />
+            <span style={{ fontSize: '11px', color: '#666' }}>{t}{label ? ` (${label})` : ''}</span>
+          </div>
+        ))}
       </div>
     </div>
   )

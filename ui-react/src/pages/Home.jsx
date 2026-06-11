@@ -6,11 +6,10 @@ import { SPORTS } from '../config'
 import { getCachedGames, startAnalysis, getHealth, discoverLatest } from '../api'
 import { useWindowSize } from '../hooks/useWindowSize'
 
-// NBA season has ended — disable discovery for NBA
-const NBA_SEASON_ENDED = true
+const NBA_SEASON_ENDED = false
 
 const SPORT_HINTS = {
-  nba:      'NBA season ended — use team names: Knicks, Celtics, Thunder, Lakers',
+  nba:      'NBA Finals live! Try: Knicks, Spurs — Game 4 tonight',
   f1:       'Use race names: Monaco, Canada, Miami — or format 2026/6',
   soccer:   "Use 'latest' for the most recent Premier League match",
   valorant: "Use 'latest' for the most recent VCT match",
@@ -134,7 +133,6 @@ export default function Home() {
 
   const handleDiscover = async () => {
     if (discovering || loading) return
-    if (NBA_SEASON_ENDED && selectedSport === 'nba') return
     setDiscovering(true)
     try {
       const found = await discoverLatest(selectedSport)
@@ -436,6 +434,40 @@ export default function Home() {
 
           {/* ── LEFT — Game Cards ── */}
           <div>
+            {/* NBA Finals 2026 Banner — NBA only */}
+            <AnimatePresence>
+              {selectedSport === 'nba' && (
+                <motion.div
+                  key="nba-finals-banner"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.3 }}
+                  style={{
+                    marginBottom: '20px',
+                    padding: '16px 20px',
+                    borderRadius: '12px',
+                    border: '1px solid #FF6B35',
+                    backgroundColor: 'rgba(255,107,53,0.06)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <div style={{ fontSize: '28px', lineHeight: 1 }}>🏆</div>
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#FF6B35', letterSpacing: '0.5px', marginBottom: '3px' }}>
+                      NBA Finals 2026 — New York Knicks vs San Antonio Spurs
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#888', letterSpacing: '0.3px' }}>
+                      Knicks lead 3-1 · Game 5 Sunday June 12
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* World Cup 2026 Banner — Soccer only */}
             <AnimatePresence>
               {selectedSport === 'soccer' && (
@@ -476,7 +508,7 @@ export default function Home() {
             }}>
               <div style={{
                 fontSize: '10px', fontWeight: 700,
-                letterSpacing: '3px', textTransform: 'uppercase', color: '#444',
+                letterSpacing: '3px', textTransform: 'uppercase', color: '#666',
               }}>
                 {sport.label} Analyses
               </div>
@@ -518,9 +550,7 @@ export default function Home() {
                     }[selectedSport]}
                   </p>
                   <p style={{ color: '#666', fontSize: '12px', margin: 0 }}>
-                    {selectedSport === 'nba'
-                      ? 'NBA 2025-26 season has ended. Browse what is cached →'
-                      : 'No cached analyses yet. Run your first analysis →'}
+                    No cached analyses yet. Run your first analysis →
                   </p>
                 </motion.div>
               ) : (
@@ -698,14 +728,14 @@ function RightPanel({
   handleAnalyze, handleDiscover, isMobile,
 }) {
   const isNba = selectedSport === 'nba'
-  const discoverDisabled = discovering || loading || (NBA_SEASON_ENDED && isNba)
+  const discoverDisabled = discovering || loading
 
   return (
     <div style={{ position: isMobile ? 'static' : 'sticky', top: '40px' }}>
       <div style={{
         fontSize: '10px', fontWeight: 700,
         letterSpacing: '3px', textTransform: 'uppercase',
-        color: '#444', marginBottom: '16px',
+        color: '#666', marginBottom: '16px',
       }}>
         Analyze a Match
       </div>
@@ -720,16 +750,13 @@ function RightPanel({
           whileTap={{ scale: discoverDisabled ? 1 : 0.98 }}
           onClick={handleDiscover}
           disabled={discoverDisabled}
-          title={NBA_SEASON_ENDED && isNba ? 'NBA season ended — browse cached games below' : undefined}
           style={{
             width: '100%', padding: '16px',
             fontSize: '12px', fontWeight: 700,
             letterSpacing: '2px', textTransform: 'uppercase',
             borderRadius: '10px', border: 'none',
-            backgroundColor: discoverDisabled
-              ? (NBA_SEASON_ENDED && isNba ? '#111' : '#222')
-              : sport.color,
-            color: discoverDisabled ? (NBA_SEASON_ENDED && isNba ? '#333' : '#444') : '#000',
+            backgroundColor: discoverDisabled ? '#222' : sport.color,
+            color: discoverDisabled ? '#555' : '#000',
             cursor: discoverDisabled ? 'not-allowed' : 'pointer',
             fontFamily: 'Inter, sans-serif', transition: 'all 0.2s',
             marginBottom: '16px',
@@ -749,8 +776,6 @@ function RightPanel({
               />
               Finding latest...
             </>
-          ) : NBA_SEASON_ENDED && isNba ? (
-            '🏀 NBA Season Ended'
           ) : (
             `⚡ Discover Latest ${sport.label}`
           )}

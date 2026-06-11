@@ -28,18 +28,18 @@ function getHumanError(error, sport) {
   const e = error.toLowerCase()
 
   if (sport === 'nba') {
-    if (e.includes('season has ended') || e.includes('no recent') || e.includes('season')) {
+    if (e.includes('no recent') || e.includes('no nba games')) {
       return {
-        title: 'NBA Season Has Ended',
-        message: 'The NBA 2025-26 season is over. Browse the cached playoff analyses on the home page, or try a team name that has a cached game.',
-        examples: ['Knicks', 'Celtics', 'Thunder'],
+        title: 'No Recent NBA Games',
+        message: 'No completed games found in the last 7 days. Try a specific team name.',
+        examples: ['Knicks', 'Spurs', 'Celtics'],
       }
     }
     if (e.includes("team '") || e.includes('not found') || e.includes('try full name')) {
       return {
         title: 'Team Not Found',
         message: 'That team name was not recognized. Try one of these:',
-        examples: ['Knicks', 'Celtics', 'Thunder', 'Lakers', 'Warriors'],
+        examples: ['Knicks', 'Spurs', 'Celtics', 'Lakers', 'Warriors'],
       }
     }
   }

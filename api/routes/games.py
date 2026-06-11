@@ -42,6 +42,8 @@ def get_game(sport: str, game_id: str):
         "match_analysis": cached.get("match_analysis"),
         "player_analysis": cached.get("player_analysis"),
         "persona": cached.get("persona"),
+        "raw_match_data": cached.get("raw_match_data"),
+        "match_date": cached.get("match_date"),
     }
 
 

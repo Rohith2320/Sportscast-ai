@@ -22,6 +22,19 @@ def _check_api(name: str, url: str, timeout: int = 5) -> APIStatus:
         return APIStatus(name=name, status="unreachable", latency_ms=None)
 
 
+def _check_nba_api() -> APIStatus:
+    start = time.time()
+    try:
+        from nba_api.stats.static import teams
+        all_teams = teams.get_teams()
+        latency = round((time.time() - start) * 1000, 1)
+        if all_teams and len(all_teams) == 30:
+            return APIStatus(name="NBA Stats API", status="ok", latency_ms=latency)
+        return APIStatus(name="NBA Stats API", status="degraded", latency_ms=latency)
+    except Exception:
+        return APIStatus(name="NBA Stats API", status="unreachable", latency_ms=None)
+
+
 @router.get("/health", response_model=HealthResponse)
 def health_check():
     """
@@ -32,7 +45,7 @@ def health_check():
 
     # Check all external APIs
     apis = [
-        _check_api("NBA Stats API", "https://stats.nba.com", timeout=5),
+        _check_nba_api(),
         _check_api(
             "F1 Jolpica API",
             "https://api.jolpi.ca/ergast/f1/current/last/results.json",
