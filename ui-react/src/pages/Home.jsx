@@ -11,7 +11,7 @@ const NBA_SEASON_ENDED = false
 const SPORT_HINTS = {
   nba:      'NBA Finals live! Try: Knicks, Spurs — Game 4 tonight',
   f1:       'Use race names: Monaco, Canada, Miami — or format 2026/6',
-  soccer:   "Use 'latest' for the most recent Premier League match",
+  soccer:   "EPL teams only: 'latest', 'Arsenal', 'Chelsea', 'Liverpool', 'Brighton'",
   valorant: "Use 'latest' for the most recent VCT match",
   mlb:      "Use 'latest' or a game ID like '824916'",
 }
@@ -492,10 +492,10 @@ export default function Home() {
                   <div style={{ fontSize: '28px', lineHeight: 1 }}>🏆</div>
                   <div style={{ flex: 1, minWidth: '180px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: '#00D4AA', letterSpacing: '0.5px', marginBottom: '3px' }}>
-                      FIFA World Cup 2026 is LIVE
+                      FIFA World Cup 2026 is LIVE — Premier League data only on free tier
                     </div>
                     <div style={{ fontSize: '11px', color: '#888', letterSpacing: '0.3px' }}>
-                      48 teams · USA, Canada, Mexico · Group stage underway
+                      World Cup 2026 data requires paid API access · Use EPL teams below
                     </div>
                   </div>
                 </motion.div>
@@ -544,7 +544,7 @@ export default function Home() {
                     {{
                       nba: 'Use team names: Knicks, Celtics, Thunder, Lakers',
                       f1: 'Use race names: Monaco, Canada, Miami — or format 2026/6',
-                      soccer: "Use 'latest' for the most recent Premier League match",
+                      soccer: "EPL teams only: 'latest', Arsenal, Chelsea, Liverpool, Brighton",
                       valorant: "Use 'latest' for the most recent VCT match",
                       mlb: "Use 'latest' or a game ID like '824916'",
                     }[selectedSport]}

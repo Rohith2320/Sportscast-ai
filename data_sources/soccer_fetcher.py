@@ -25,6 +25,15 @@ LEAGUE_IDS = {
     "fifa_world_cup": 27,
 }
 
+# Teams not in EPL — return a clear error instead of silently fetching wrong data
+NON_EPL_TEAMS = {
+    'france', 'brazil', 'argentina', 'germany', 'spain', 'italy',
+    'portugal', 'netherlands', 'psg', 'paris', 'barcelona', 'real madrid',
+    'atletico', 'bayern', 'dortmund', 'juventus', 'inter', 'milan',
+    'ajax', 'benfica', 'porto', 'celtic', 'rangers', 'galatasaray',
+    'world cup', 'worldcup', 'fifa',
+}
+
 
 def safe_fetch(url: str, label: str, params: dict = None) -> dict:
     """Safely fetch URL. Returns empty dict on failure."""
@@ -287,6 +296,16 @@ def soccer_fetch_node(state: SportsCastState) -> dict:
     start_time = log_agent_start("SoccerFetchAgent")
 
     try:
+        if match_id and match_id.lower().strip() in NON_EPL_TEAMS:
+            return {
+                "error": (
+                    f"'{match_id}' is not a Premier League team. "
+                    f"Only EPL teams are supported on the free tier. "
+                    f"Try: Arsenal, Chelsea, Liverpool, Brighton, "
+                    f"Manchester United, Manchester City"
+                )
+            }
+
         if not match_id or match_id == "latest":
             try:
                 print("Fetching latest World Cup match...")

@@ -91,7 +91,11 @@ def fetch_team_latest_game(team_name: str) -> dict:
 def _build_game(game: dict) -> dict:
     """Build game dict from schedule data then fetch full box score."""
     game_id = game["gamePk"]
-    return _build_game_by_id(game_id)
+    game_date = (game.get("officialDate") or game.get("gameDate", ""))[:10]
+    result = _build_game_by_id(game_id)
+    if game_date:
+        result["game_date"] = game_date
+    return result
 
 
 def _build_game_by_id(game_id: int) -> dict:

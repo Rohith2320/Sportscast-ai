@@ -256,6 +256,16 @@ def player_analysis_node(state: SportsCastState) -> dict:
         else:
             formatted_players = format_player_data(raw_data)
 
+        playoff_ctx = raw_data.get('playoff_context', {})
+        if playoff_ctx.get('is_playoff'):
+            playoff_header = (
+                f"=== PLAYOFF CONTEXT ===\n"
+                f"This is a {playoff_ctx.get('round', 'playoff')} game "
+                f"(Game {playoff_ctx.get('game_in_series', '?')}).\n"
+                f"=== END PLAYOFF CONTEXT ===\n\n"
+            )
+            formatted_players = playoff_header + formatted_players
+
         print("Sending to Claude for player analysis...")
         analysis = analyze_players(formatted_players, match_analysis, sport)
 

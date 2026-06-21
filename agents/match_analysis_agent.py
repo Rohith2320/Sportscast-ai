@@ -180,6 +180,18 @@ def match_analysis_node(state: SportsCastState) -> dict:
         else:
             formatted_data = format_nba_data(raw_data)
 
+        # Prepend playoff context so Claude always knows the series context
+        playoff_ctx = raw_data.get('playoff_context', {})
+        if playoff_ctx.get('is_playoff'):
+            playoff_header = (
+                f"=== PLAYOFF CONTEXT (CRITICAL — INCLUDE IN ANALYSIS) ===\n"
+                f"This is a {playoff_ctx.get('round', 'playoff')} game.\n"
+                f"Game number in series: Game {playoff_ctx.get('game_in_series', '?')}\n"
+                f"Always mention this is a playoff game and which game in the series it is.\n"
+                f"=== END PLAYOFF CONTEXT ===\n\n"
+            )
+            formatted_data = playoff_header + formatted_data
+
         print("Sending to Claude for analysis...")
         analysis = analyze_match(formatted_data, sport)
 

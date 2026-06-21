@@ -354,14 +354,26 @@ ${htmlLines}
 
   const pageSubtitle = (() => {
     const parts = [sportConfig.label]
-    if (result?.match_date) {
+
+    // Playoff context for NBA
+    const playoffCtx = result?.raw_match_data?.playoff_context
+    if (playoffCtx?.is_playoff) {
+      parts.push(`${playoffCtx.round} — Game ${playoffCtx.game_in_series}`)
+    }
+
+    // Match date — try raw_match_data per sport, then result.match_date
+    const rawData = result?.raw_match_data || {}
+    const rawDate = rawData.game_date || rawData.date || rawData.event_date || result?.match_date
+    if (rawDate) {
       try {
-        const d = new Date(result.match_date)
-        parts.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))
+        const d = new Date(rawDate)
+        if (!isNaN(d.getTime())) {
+          parts.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }))
+        }
       } catch {}
     }
+
     parts.push(result?.persona === 'tactical_coach' ? 'Tactical Coach' : 'ESPN Formal')
-    parts.push('claude-opus-4-8')
     return parts.join(' · ')
   })()
 

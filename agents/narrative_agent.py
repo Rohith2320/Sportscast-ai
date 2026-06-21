@@ -222,6 +222,19 @@ def narrative_node(state: SportsCastState) -> dict:
     try:
         print(f"Generating narrative in '{persona_key}' style...")
         storylines = extract_key_storylines(match_analysis, player_analysis, sport.lower())
+
+        raw_data = state.get("raw_match_data") or {}
+        playoff_ctx = raw_data.get('playoff_context', {})
+        if playoff_ctx.get('is_playoff'):
+            playoff_header = (
+                f"=== PLAYOFF CONTEXT (CRITICAL) ===\n"
+                f"This is a {playoff_ctx.get('round', 'playoff')} game "
+                f"(Game {playoff_ctx.get('game_in_series', '?')}).\n"
+                f"The narrative MUST mention it is a playoff game and the game number.\n"
+                f"=== END PLAYOFF CONTEXT ===\n\n"
+            )
+            storylines = playoff_header + storylines
+
         narrative = generate_narrative(storylines, sport, persona_key)
 
         log_agent_complete("NarrativeAgent", start_time)

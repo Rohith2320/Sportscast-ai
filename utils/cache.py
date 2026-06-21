@@ -157,7 +157,8 @@ def list_cached_games(sport: str = None) -> list[dict]:
             match_date = raw.get("game_date")
         elif sport_name == "valorant":
             match_date = raw.get("date")
-        # NBA raw_match_data doesn't include date; leave as None (use cached_at)
+        elif sport_name == "nba":
+            match_date = raw.get("game_date")
 
         # Extract first sentence of narrative for card previews
         narrative_excerpt = ""
