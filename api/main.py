@@ -30,12 +30,22 @@ async def lifespan(app: FastAPI):
     print("=" * 50)
 
     # Verify required environment variables
-    required_keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "BSD_API_KEY"]
-    missing = [k for k in required_keys if not os.getenv(k)]
-    if missing:
-        print(f"WARNING: Missing environment variables: {missing}")
+    critical_keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
+    optional_keys = ["BSD_API_KEY", "ELEVENLABS_API_KEY"]
+    missing_critical = [k for k in critical_keys if not os.getenv(k)]
+    missing_optional = [k for k in optional_keys if not os.getenv(k)]
+
+    if missing_critical:
+        print("!" * 50)
+        print(f"CRITICAL: Missing required API keys: {missing_critical}")
+        print("The analysis pipeline WILL FAIL without these keys.")
+        print("Set them in your .env file or environment before starting.")
+        print("!" * 50)
     else:
-        print("Environment: All API keys loaded")
+        print("Environment: All required API keys loaded (Anthropic + OpenAI)")
+
+    if missing_optional:
+        print(f"Note: Optional keys not set: {missing_optional}")
 
     # Load jobs from disk
     load_all_jobs_from_disk()
