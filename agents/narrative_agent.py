@@ -194,7 +194,7 @@ Writing style requirements:
     )
 
     track_cost(
-        model="claude-sonnet-4-6",
+        model="claude-opus-4-8",
         input_tokens=message.usage.input_tokens,
         output_tokens=message.usage.output_tokens
     )
