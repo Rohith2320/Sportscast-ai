@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.git
+.gitignore
+node_modules/
+ui-react/node_modules/
+ui-react/dist/
+*.log
+.pytest_cache/
+tests/
+README.md
+.streamlit/
+ui/
+inspect_cache*.py
