@@ -25,20 +25,24 @@ from agents.narrative_agent import narrative_node
 # CONDITIONAL EDGES
 # ─────────────────────────────────────────────
 
+SPORT_FETCH_ROUTES = {
+    "nba": "nba_fetch",
+    "f1": "f1_fetch",
+    "soccer": "soccer_fetch",
+    "football": "soccer_fetch",
+    "valorant": "valorant_fetch",
+    "valo": "valorant_fetch",
+    "mlb": "mlb_fetch",
+    "baseball": "mlb_fetch",
+}
+
+
 def route_to_fetch(state: SportsCastState) -> str:
-    """Route to correct fetch node based on sport."""
+    """Route to correct fetch node based on sport, or end if router flagged an error."""
+    if state.get("error"):
+        return "end"
     sport = state.get("sport", "nba").lower()
-    routes = {
-        "nba": "nba_fetch",
-        "f1": "f1_fetch",
-        "soccer": "soccer_fetch",
-        "football": "soccer_fetch",
-        "valorant": "valorant_fetch",
-        "valo": "valorant_fetch",
-        "mlb": "mlb_fetch",
-        "baseball": "mlb_fetch",
-    }
-    return routes.get(sport, "nba_fetch")
+    return SPORT_FETCH_ROUTES.get(sport, "end")
 
 
 def should_continue_after_fetch(state: SportsCastState) -> str:
@@ -66,9 +70,21 @@ def should_continue_after_analysis(state: SportsCastState) -> str:
 
 def router_node(state: SportsCastState) -> dict:
     """
-    Entry point node. Acts as routing hub.
-    Conditional edge handles actual routing to sport-specific fetch node.
+    Entry point node. Validates the requested sport before any fetch
+    or LLM call runs — an unsupported sport sets state["error"] here,
+    and the conditional edge below routes straight to END for it.
+    Conditional edge otherwise handles routing to the sport-specific
+    fetch node.
     """
+    sport = state.get("sport", "nba").lower()
+    if sport not in SPORT_FETCH_ROUTES:
+        supported = sorted(set(SPORT_FETCH_ROUTES.keys()))
+        return {
+            "error": (
+                f"Unsupported sport: '{state.get('sport')}'. "
+                f"Supported sports: {', '.join(supported)}"
+            )
+        }
     return {}
 
 
@@ -117,7 +133,8 @@ def build_sportscast_graph() -> StateGraph:
     # Entry point is router
     graph.set_entry_point("router")
 
-    # Router branches to correct fetch node
+    # Router branches to correct fetch node, or straight to END for an
+    # unsupported sport (router_node already set state["error"] for that case)
     graph.add_conditional_edges(
         "router",
         route_to_fetch,
@@ -127,6 +144,7 @@ def build_sportscast_graph() -> StateGraph:
             "soccer_fetch": "soccer_fetch",
             "valorant_fetch": "valorant_fetch",
             "mlb_fetch": "mlb_fetch",
+            "end": END,
         }
     )
 

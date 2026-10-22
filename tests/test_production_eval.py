@@ -744,7 +744,7 @@ def run_error_handling_tests():
 
     def test_invalid_sport(r):
         result = run_analysis("cricket", "latest", force_refresh=True)
-        r.pass_test("Invalid sport handled gracefully") if result.get("error") else r.skip_test("No error returned — defaulted gracefully")
+        r.pass_test(f"Unsupported sport rejected: {result['error'][:60]}") if result.get("error") else r.fail_test("Expected an error for an unsupported sport, got none — it may have silently fallen back to another sport")
 
     def test_empty_match_id(r):
         result = run_analysis("nba", "", force_refresh=True)
