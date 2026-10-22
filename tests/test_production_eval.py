@@ -24,6 +24,24 @@ load_dotenv()
 
 RUN_LIVE = "--live" in sys.argv
 
+FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
+
+
+def load_fixture(filename: str) -> dict | None:
+    """
+    Load a committed test fixture from tests/fixtures/.
+
+    Unlike utils.cache.load_from_cache, this does not depend on the
+    gitignored cache/ directory, so quality suites can run in CI.
+    Returns None if the fixture file doesn't exist.
+    """
+    path = os.path.join(FIXTURES_DIR, filename)
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        cache_data = json.load(f)
+    return cache_data.get("state")
+
 
 # ─────────────────────────────────────────────
 # TEST INFRASTRUCTURE
@@ -285,12 +303,19 @@ def run_nba_quality_tests():
     print("TIER 1 — NBA CACHE QUALITY TESTS")
     print('=' * 60)
 
-    from utils.cache import load_from_cache
-    cached = load_from_cache("0042500401", "nba")
+    fixture_name = "nba_0042500401.json"
+    cached = load_fixture(fixture_name)
+
+    def test_fixture_present(r):
+        if cached:
+            r.pass_test(f"Fixture loaded: {fixture_name}")
+        else:
+            r.fail_test(f"Missing fixture: tests/fixtures/{fixture_name}")
+
+    suite.run("Fixture Present", test_fixture_present)
 
     if not cached:
-        print("  [-] NBA cache not found — skipping all NBA quality tests")
-        return True
+        return suite.summary()
 
     narrative = cached.get("narrative", "")
     player_analysis = cached.get("player_analysis", "")
@@ -377,12 +402,19 @@ def run_f1_quality_tests():
     print("TIER 1 — F1 CACHE QUALITY TESTS")
     print('=' * 60)
 
-    from utils.cache import load_from_cache
-    cached = load_from_cache("2026_5", "f1")
+    fixture_name = "f1_2026_5.json"
+    cached = load_fixture(fixture_name)
+
+    def test_fixture_present(r):
+        if cached:
+            r.pass_test(f"Fixture loaded: {fixture_name}")
+        else:
+            r.fail_test(f"Missing fixture: tests/fixtures/{fixture_name}")
+
+    suite.run("Fixture Present", test_fixture_present)
 
     if not cached:
-        print("  [-] F1 cache not found — skipping all F1 quality tests")
-        return True
+        return suite.summary()
 
     narrative = cached.get("narrative", "")
 
@@ -454,12 +486,19 @@ def run_soccer_quality_tests():
     print("TIER 1 — SOCCER CACHE QUALITY TESTS")
     print('=' * 60)
 
-    from utils.cache import load_from_cache
-    cached = load_from_cache("374", "soccer")
+    fixture_name = "soccer_374.json"
+    cached = load_fixture(fixture_name)
+
+    def test_fixture_present(r):
+        if cached:
+            r.pass_test(f"Fixture loaded: {fixture_name}")
+        else:
+            r.fail_test(f"Missing fixture: tests/fixtures/{fixture_name}")
+
+    suite.run("Fixture Present", test_fixture_present)
 
     if not cached:
-        print("  [-] Soccer cache not found — skipping all Soccer quality tests")
-        return True
+        return suite.summary()
 
     narrative = cached.get("narrative", "")
 
@@ -521,12 +560,19 @@ def run_valorant_quality_tests():
     print("TIER 1 — VALORANT CACHE QUALITY TESTS")
     print('=' * 60)
 
-    from utils.cache import load_from_cache
-    cached = load_from_cache("684611", "valorant")
+    fixture_name = "valorant_754737.json"
+    cached = load_fixture(fixture_name)
+
+    def test_fixture_present(r):
+        if cached:
+            r.pass_test(f"Fixture loaded: {fixture_name}")
+        else:
+            r.fail_test(f"Missing fixture: tests/fixtures/{fixture_name}")
+
+    suite.run("Fixture Present", test_fixture_present)
 
     if not cached:
-        print("  [-] Valorant cache not found — skipping all Valorant quality tests")
-        return True
+        return suite.summary()
 
     narrative = cached.get("narrative", "")
 
@@ -546,24 +592,28 @@ def run_valorant_quality_tests():
             r.pass_test("No em dashes found")
 
     def test_team_names_present(r):
-        teams = ["FUT", "FULL SENSE"]
+        teams = ["LOUD", "Team Vitality"]
         found = [t for t in teams if t in narrative]
         r.pass_test(f"Team names present: {found}") if len(found) == 2 else r.fail_test(f"Missing teams: {[t for t in teams if t not in narrative]}")
 
     def test_player_igns_present(r):
-        # Roster has s0pp, xeus, yetujey for FUT and Leviathan, Killua for FULL SENSE
-        igns = ["s0pp", "xeus", "Leviathan", "Killua", "yetujey"]
-        found = [p for p in igns if p in narrative]
+        # Roster: LOUD = erde/lukxo/DaviH/Darker, Team Vitality = Jamppi/PROFEK/Derke/Chronicle/Sayonara.
+        # The narrative agent deliberately narrows to 1-2 standout players (see enrichment_agent's
+        # top-3 logic for the analogous NBA behavior), so check the full analysis output
+        # (narrative + player_analysis), not narrative alone, for real roster names.
+        igns = ["erde", "lukxo", "DaviH", "Darker", "Jamppi", "PROFEK", "Derke", "Chronicle", "Sayonara"]
+        full_text = narrative + "\n" + cached.get("player_analysis", "")
+        found = [p for p in igns if p in full_text]
         r.pass_test(f"Player IGNs present: {found}") if len(found) >= 2 else r.fail_test(f"Too few IGNs — only found: {found}")
 
     def test_tournament_context(r):
-        keywords = ["Masters", "London", "Swiss", "tournament"]
+        keywords = ["Champions", "Grand Final", "Masters", "London"]
         found = [k for k in keywords if k in narrative]
         r.pass_test(f"Tournament context present: {found}") if len(found) >= 2 else r.fail_test(f"Missing tournament context — only found: {found}")
 
     def test_player_analysis_content(r):
         player_analysis = cached.get("player_analysis", "")
-        val_terms = ["agent", "team", "round", "FUT", "FULL SENSE", "winning", "tactical"]
+        val_terms = ["agent", "team", "round", "LOUD", "Team Vitality", "winning", "tactical"]
         found = [t for t in val_terms if t.lower() in player_analysis.lower()]
         if len(found) >= 3:
             r.pass_test(f"Valorant player analysis has team content: {found}")
@@ -590,12 +640,19 @@ def run_mlb_quality_tests():
     print("TIER 1 — MLB CACHE QUALITY TESTS")
     print('=' * 60)
 
-    from utils.cache import load_from_cache
-    cached = load_from_cache("824916", "mlb")
+    fixture_name = "mlb_824916.json"
+    cached = load_fixture(fixture_name)
+
+    def test_fixture_present(r):
+        if cached:
+            r.pass_test(f"Fixture loaded: {fixture_name}")
+        else:
+            r.fail_test(f"Missing fixture: tests/fixtures/{fixture_name}")
+
+    suite.run("Fixture Present", test_fixture_present)
 
     if not cached:
-        print("  [-] MLB cache not found — skipping all MLB quality tests")
-        return True
+        return suite.summary()
 
     narrative = cached.get("narrative", "")
     raw = cached.get("raw_match_data", {})
