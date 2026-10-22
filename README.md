@@ -27,7 +27,7 @@
 
 ## What Is This
 
-SportsCast AI fetches live data from five sports (NBA, F1, EPL Soccer, Valorant, MLB), runs it through a LangGraph pipeline with five specialized Claude Opus 4 agents, and produces broadcast-quality sports narratives with voice commentary.
+SportsCast AI fetches live data from five sports (NBA, F1, EPL Soccer, Valorant, MLB), runs it through a LangGraph pipeline of specialized agents, and produces broadcast-quality sports narratives with voice commentary. The pipeline mixes models by task: Claude Sonnet 4.6 for match analysis, player analysis, and enrichment; Claude Opus 4.8 for the final narrative; and GPT-4o-mini for chat, which runs outside the pipeline as its own agent.
 
 The system covers NBA Finals analysis, Formula 1 race breakdowns, Premier League match reports, Valorant Champions Tour coverage, and MLB game analysis using free live APIs with zero paywalls.
 
@@ -73,17 +73,17 @@ NBA Stats API · Jolpica F1 · BSD Soccer · VLR Esports · MLB Stats API
    v           v
 MATCH       PLAYER           <- parallel execution
 ANALYSIS    ANALYSIS
-(Opus 4)    (Opus 4)
+(Sonnet 4.6)(Sonnet 4.6)
    |           |
    |___________|
          |
          v
     ENRICHMENT               <- NBA only (skip if no structured data)
-    (Opus 4)
+    (Sonnet 4.6)
          |
          v
     NARRATIVE                <- broadcast-quality 400-600 word output
-    (Opus 4)
+    (Opus 4.8)
          |
          v
     JSON CACHE               <- $0.00 on all repeat requests
@@ -112,20 +112,20 @@ MCP Server:    FastMCP on port 8001 (AI-callable tool integration)
 **Router Node** | Pure Python
 Reads `state["sport"]` and routes to the correct fetcher. Zero LLM cost. This was the first design decision: knowing when NOT to use AI.
 
-**Match Analysis Agent** | `claude-opus-4-8`
+**Match Analysis Agent** | `claude-sonnet-4-6`
 4-section structured analysis: game overview, key turning points, team performance, decisive factors. Runs in parallel with Player Analysis.
 
-**Player Analysis Agent** | `claude-opus-4-8`
+**Player Analysis Agent** | `claude-sonnet-4-6`
 Sport-aware breakdowns. NBA uses structured PLAYER/RATING/STATS/INSIGHT format with 16 players per game. F1 analyzes driver strategy and race pace. MLB is pitcher-first. Each sport gets a different prompt because the relevant information is fundamentally different.
 
-**Enrichment Agent** | `claude-opus-4-8` (NBA only)
+**Enrichment Agent** | `claude-sonnet-4-6` (NBA only)
 Takes the top 3 performers from Player Analysis and enriches them with match-level context. Deliberately skipped for other sports. Only NBA has the structured per-player data to make enrichment meaningful. Knowing when to skip a pipeline stage matters as much as knowing when to run it.
 
 **Narrative Agent** | `claude-opus-4-8`
 The output layer. 400-600 words. Explicitly instructed to avoid AI writing patterns: no em dashes, no "notably" or "crucially," no consecutive sentences starting with "The." The output should read like a journalist wrote it.
 
 **Chat Agent** | `gpt-4o-mini` + pure Python intent classifier
-Not part of the main pipeline. Uses pattern-matching for intent classification (7 categories, zero LLM cost, microsecond latency), then GPT-4o-mini for response generation. GPT-4o-mini costs 20x less than Claude for grounded Q&A. Knowing which model fits which task is part of the engineering.
+Not a node in the LangGraph pipeline — it's a separate agent invoked directly by the `POST /chat` route against a completed, cached analysis, not wired into the analysis graph. Uses pattern-matching for intent classification (7 categories, zero LLM cost, microsecond latency), then GPT-4o-mini for response generation. GPT-4o-mini costs 20x less than Claude for grounded Q&A. Knowing which model fits which task is part of the engineering.
 
 ---
 
@@ -213,7 +213,7 @@ Result: 9/9 suites passing across 40 cached analyses
 | Layer | Technology |
 |---|---|
 | **Orchestration** | LangGraph, LangChain |
-| **LLM (pipeline)** | Claude Opus 4 (`claude-opus-4-8`) |
+| **LLM (pipeline)** | Claude Sonnet 4.6 (match/player/enrichment) + Claude Opus 4.8 (narrative) |
 | **LLM (chat)** | GPT-4o-mini |
 | **Observability** | LangSmith (per-agent traces, cost attribution) |
 | **Memory** | Mem0 (persistent chat context) |
@@ -277,7 +277,7 @@ python mcp_server.py   # port 8001
 |---|---|---|
 | `ANTHROPIC_API_KEY` | console.anthropic.com | Yes |
 | `OPENAI_API_KEY` | platform.openai.com | Yes |
-| `BSD_API_KEY` | betsapi.com | Yes (Soccer) |
+| `BSD_API_KEY` | sports.bzzoiro.com | Yes (Soccer) |
 | `RIOT_API_KEY` | developer.riotgames.com | Yes (Valorant) |
 | `ELEVENLABS_API_KEY` | elevenlabs.io | Optional |
 | `LANGCHAIN_API_KEY` | smith.langchain.com | Optional |

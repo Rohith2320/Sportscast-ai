@@ -19,7 +19,6 @@ from agents.match_analysis_agent import match_analysis_node
 from agents.player_analysis_agent import player_analysis_node
 from agents.enrichment_agent import enrichment_node
 from agents.narrative_agent import narrative_node
-from agents.chat_agent import chat_node
 
 
 # ─────────────────────────────────────────────
@@ -114,7 +113,6 @@ def build_sportscast_graph() -> StateGraph:
     graph.add_node("player_analysis", player_analysis_node)
     graph.add_node("enrichment", enrichment_node)
     graph.add_node("narrative", narrative_node)
-    graph.add_node("chat", chat_node)
 
     # Entry point is router
     graph.set_entry_point("router")
