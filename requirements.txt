@@ -14,4 +14,3 @@ nba-api
 pydantic
 pytz
 fastmcp
-mem0ai

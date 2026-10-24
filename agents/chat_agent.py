@@ -18,20 +18,6 @@ def get_client() -> OpenAI:
     return _client
 
 
-_mem0_client = None
-
-
-def _get_memory():
-    global _mem0_client
-    if _mem0_client is None and os.getenv('MEM0_ENABLED', 'false').lower() == 'true':
-        try:
-            from mem0 import Memory
-            _mem0_client = Memory()
-        except Exception:
-            pass
-    return _mem0_client
-
-
 # ─────────────────────────────────────────────
 # INTENT CLASSIFICATION
 # ─────────────────────────────────────────────
@@ -161,20 +147,6 @@ def find_player_in_query(
             matches.append(player)
 
     return matches
-
-
-def is_player_in_game(
-    query: str,
-    players_in_game: list[str]
-) -> tuple[bool, list[str]]:
-    """
-    Check if query mentions a player and whether they played in this game.
-
-    Returns:
-        (player_found_in_game, matched_players)
-    """
-    matches = find_player_in_query(query, players_in_game)
-    return len(matches) > 0, matches
 
 
 # ─────────────────────────────────────────────

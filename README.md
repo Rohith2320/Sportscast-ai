@@ -101,7 +101,6 @@ ANALYSIS    ANALYSIS
   2 containers · Nginx · docker-compose
 
 Observability: LangSmith (per-agent traces, latency, cost attribution)
-Memory:        Mem0 (persistent chat context across sessions)
 MCP Server:    FastMCP on port 8001 (AI-callable tool integration)
 ```
 
@@ -216,7 +215,6 @@ Result: 9/9 suites passing across 40 cached analyses
 | **LLM (pipeline)** | Claude Sonnet 4.6 (match/player/enrichment) + Claude Opus 4.8 (narrative) |
 | **LLM (chat)** | GPT-4o-mini |
 | **Observability** | LangSmith (per-agent traces, cost attribution) |
-| **Memory** | Mem0 (persistent chat context) |
 | **MCP** | FastMCP (AI-callable tool server) |
 | **Backend** | FastAPI, Uvicorn, SSE streaming |
 | **Frontend** | React 18, Vite, Framer Motion |
@@ -295,7 +293,7 @@ sportscast-ai/
 │   ├── player_analysis_agent.py
 │   ├── enrichment_agent.py
 │   ├── narrative_agent.py
-│   └── chat_agent.py           GPT-4o-mini + Mem0 + intent classifier
+│   └── chat_agent.py           GPT-4o-mini + intent classifier
 ├── api/                        FastAPI backend
 │   ├── routes/                 analyze, chat, games, health, tts, discovery
 │   └── services/job_manager.py disk-persisted job state

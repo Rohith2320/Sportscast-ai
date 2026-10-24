@@ -14,7 +14,7 @@ Excludes `node_modules/`, `__pycache__/`, `.git/`, `venv/`, build output, and th
 sportscast-ai/
 ├── graph.py                        LangGraph pipeline definition + run_analysis() entry point
 ├── mcp_server.py                   Standalone FastMCP server (port 8001), partially independent of the FastAPI app
-├── requirements.txt                17 unpinned top-level deps (langgraph, fastapi, anthropic, openai, nba-api, etc.)
+├── requirements.txt                16 unpinned top-level deps (langgraph, fastapi, anthropic, openai, nba-api, etc.)
 ├── Dockerfile                      Backend image: python:3.11-slim, installs requirements, runs uvicorn with 2 workers
 ├── docker-compose.yml              Defines `api` + `frontend` services
 ├── nginx.conf.example              Documentation-only Nginx config for a bare-metal/VM deploy (not used by Docker build)
@@ -211,7 +211,7 @@ No graph-level retry policy is configured on any node. The only graph-level safe
 
 **narrative_agent.py** — the only Opus call, and the last step before `END`. Prompt assembles: persona instructions from `utils/personas.py`, a storylines block (sport-aware truncation of match/player analysis — MLB/F1 get 1500 chars, NBA/Valorant get 800), and a sport-specific 4-paragraph structure template (separate hardcoded templates for F1, Valorant, MLB, and a generic one for the rest). Requires "at least two specific statistics" per paragraph. Reads `match_analysis`/`player_analysis` without `.get()` defaults (would `KeyError` if missing, caught by the outer `try/except`), plus `persona` and playoff context if present.
 
-**chat_agent.py** — the most complex file (475 lines), and the only one not using Claude. It exposes plain functions rather than a graph node; `POST /chat` and `mcp_server.py` call them directly. Intent classification is pure Python keyword matching over 7 categories (`classify_intent`, `chat_agent.py:52-127`), not an LLM call. Player/entity matching is regex + substring. Context retrieval varies by intent (factual pulls a specific player section; predictive pulls the full match analysis plus 2500 chars of player analysis; etc.). History beyond 8 turns gets summarized into a synthetic exchange. The file still defines a Mem0 long-term-memory helper (`_get_memory()`, gated on `MEM0_ENABLED=true`), but nothing calls it: its only caller was the deleted `chat_node()`, and `POST /chat` never used Mem0, so setting `MEM0_ENABLED` currently has no effect. The final generation call uses a system+user split (system prompt carries grounding rules and per-intent format instructions), `temperature=0.7`.
+**chat_agent.py** — the most complex file (447 lines), and the only one not using Claude. It exposes plain functions rather than a graph node; `POST /chat` and `mcp_server.py` call them directly. Intent classification is pure Python keyword matching over 7 categories (`classify_intent`, `chat_agent.py:52-127`), not an LLM call. Player/entity matching is regex + substring. Context retrieval varies by intent (factual pulls a specific player section; predictive pulls the full match analysis plus 2500 chars of player analysis; etc.). History beyond 8 turns gets summarized into a synthetic exchange. There is no long-term memory layer: chat context is only the history the client sends with each request. The final generation call uses a system+user split (system prompt carries grounding rules and per-intent format instructions), `temperature=0.7`.
 
 **Runtime per agent**: no benchmark data exists anywhere in the repo. `utils/logger.py`'s `log_agent_start`/`log_agent_complete` print per-agent wall-clock duration to stdout at runtime, but nothing persists or aggregates those numbers — I could not find logged timing data, a benchmarks file, or CI timing output to cite. The only thing I can say with confidence from the code: `narrative` is the last node in the dependency chain (after both `match_analysis` and `player_analysis` complete) and uses the larger/slower Opus model, so it is very likely the single biggest latency contributor, but I cannot give you a number.
 
@@ -290,7 +290,7 @@ The "9/9 passing" number referenced in the README and run in CI refers specifica
 
 An optional **Tier 2** (`--live` flag, not run in CI) actually calls live APIs and the live pipeline for all 5 sports plus an API-connectivity check and a total-cost budget assertion (expects total session cost under $0.60 for ~5 live analyses).
 
-**What this suite does not cover at all:** the FastAPI layer (no test imports or calls any `api/` module — no test ever hits `/analyze`, `/chat`, `/health`, `/games`, or the SSE stream endpoint), the job manager (`api/services/job_manager.py` has zero tests), the multi-worker/disk-persistence behavior described in Section 6, the frontend (no JS test files exist anywhere under `ui-react/`), `mcp_server.py`, TTS, LangSmith tracing, and Mem0 integration. Chat correctness (beyond intent classification) also has no automated assertions — `tests/test_chat_agent.py` runs real queries against a cached game and prints the model's answers for a human to read, with no pass/fail check.
+**What this suite does not cover at all:** the FastAPI layer (no test imports or calls any `api/` module — no test ever hits `/analyze`, `/chat`, `/health`, `/games`, or the SSE stream endpoint), the job manager (`api/services/job_manager.py` has zero tests), the multi-worker/disk-persistence behavior described in Section 6, the frontend (no JS test files exist anywhere under `ui-react/`), `mcp_server.py`, TTS, and LangSmith tracing. Chat correctness (beyond intent classification) also has no automated assertions — `tests/test_chat_agent.py` runs real queries against a cached game and prints the model's answers for a human to read, with no pass/fail check.
 
 The other 27 `test_*.py` files in `tests/` (e.g. `test_balldontlie.py`, `test_bsd_*.py`, `test_vlr_api.py`, `test_worldcup*.py`, `test_mlb_api.py`, per-sport `test_*_fetcher.py`/`test_*_pipeline.py`) are exploratory scratch scripts: they call a function or hit an API and `print()` the result for a human to eyeball. None of them use `assert`, pytest fixtures, or any pass/fail mechanism — they do not run in CI and provide no regression protection. If one of these scripts still "works," it's only because nobody has run it recently to notice otherwise.
 
@@ -339,7 +339,6 @@ Summing these ceilings (plus input tokens, which I can't bound precisely without
 | `ELEVENLABS_API_KEY` | Optional | TTS, falls back to browser speech synthesis if unset |
 | `RIOT_API_KEY` | Optional, tests only | not read anywhere in `api/` or `data_sources/` |
 | `LANGCHAIN_API_KEY`, `LANGCHAIN_TRACING_V2`, `LANGCHAIN_PROJECT` | Optional | LangSmith tracing |
-| `MEM0_ENABLED` | Optional | currently no effect — `chat_agent._get_memory()` reads it, but nothing calls that helper |
 | `RAPIDAPI_KEY`, `BALLDONTLIE_API_KEY` | Optional, tests only | not read in app code |
 | `VITE_API_URL` | Optional | frontend build arg, defaults to `http://localhost:8000` |
 
@@ -396,6 +395,7 @@ Being direct, as asked:
 ### Resolved since this document was first written
 
 - **Dead `chat` graph node** — removed from `graph.py`, and the orphaned `chat_node()` function deleted from `chat_agent.py`. Chat runs only through `POST /chat`, which calls `chat_agent`'s functions directly.
+- **Unconnected Mem0 memory and `is_player_in_game()`** — both lost their only caller with `chat_node()`. Removed `_get_memory()`, the `mem0ai` dependency, `MEM0_ENABLED` from `.env.example`, and the README's Mem0 claims (it advertised persistent chat memory that never ran); removed `is_player_in_game()` (`POST /chat` uses `find_player_in_query`).
 - **README model claims** — corrected: only `narrative_agent` uses Opus 4.8; match/player/enrichment use Sonnet 4.6; chat uses GPT-4o-mini.
 - **Soccer vendor name** — the README now names `sports.bzzoiro.com`, matching the code.
 - **`BSD_API_KEY` required-vs-optional contradiction** — `.env.example` now lists it as optional, matching `api/main.py`'s startup check.
