@@ -9,7 +9,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+_client = None
+
+
+def get_client() -> Anthropic:
+    # Built on first use so importing this module doesn't require ANTHROPIC_API_KEY
+    global _client
+    if _client is None:
+        _client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    return _client
 
 
 def extract_key_storylines(
@@ -185,7 +193,7 @@ Writing style requirements:
 - Be direct. Say what happened without announcing you are about to say it.
 - Every paragraph must contain at least two specific statistics from the data."""
 
-    message = client.messages.create(
+    message = get_client().messages.create(
         model="claude-opus-4-8",
         max_tokens=1200,
         messages=[

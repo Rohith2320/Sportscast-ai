@@ -8,8 +8,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Initialize Anthropic client
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+# Anthropic client, built on first use so importing doesn't require ANTHROPIC_API_KEY
+_client = None
+
+
+def get_client() -> Anthropic:
+    global _client
+    if _client is None:
+        _client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    return _client
 
 
 def format_nba_data(raw_data: dict) -> str:
@@ -134,7 +141,7 @@ Writing style requirements:
 
 """
 
-    message = client.messages.create(
+    message = get_client().messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2000,
         messages=[

@@ -9,7 +9,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+_client = None
+
+
+def get_client() -> OpenAI:
+    # Built on first use so importing this module doesn't require OPENAI_API_KEY
+    global _client
+    if _client is None:
+        _client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    return _client
+
 
 _mem0_client = None
 
@@ -452,7 +461,7 @@ GAME CONTEXT:
     # Add current query
     messages.append({"role": "user", "content": query})
 
-    response = client.chat.completions.create(
+    response = get_client().chat.completions.create(
         model="gpt-4o-mini",
         max_tokens=600,
         messages=messages,

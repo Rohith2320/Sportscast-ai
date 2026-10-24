@@ -9,7 +9,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+_client = None
+
+
+def get_client() -> Anthropic:
+    # Built on first use so importing this module doesn't require ANTHROPIC_API_KEY
+    global _client
+    if _client is None:
+        _client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    return _client
 
 
 def extract_top_players(player_analysis: str, top_n: int = 3) -> list[dict]:
@@ -109,7 +117,7 @@ Writing style:
 - Reference actual match events from the context
 - Keep each INSIGHT to 2-3 sentences"""
 
-    message = client.messages.create(
+    message = get_client().messages.create(
         model="claude-sonnet-4-6",
         max_tokens=800,
         messages=[

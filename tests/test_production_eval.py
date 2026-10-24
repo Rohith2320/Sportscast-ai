@@ -24,6 +24,10 @@ load_dotenv()
 
 RUN_LIVE = "--live" in sys.argv
 
+# GitHub Actions sets CI=true. Tier 1 runs off committed fixtures and needs no
+# API keys there, so key-presence checks are skipped in CI rather than failed.
+IN_CI = os.getenv("CI", "").lower() == "true"
+
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 
 
@@ -113,24 +117,30 @@ def run_environment_tests():
     print("TIER 1 — ENVIRONMENT TESTS")
     print('=' * 60)
 
+    def missing_key(r, message):
+        if IN_CI:
+            r.skip_test(f"{message} (CI: not required for fixture-based Tier 1 tests)")
+        else:
+            r.fail_test(message)
+
     def test_openai_key(r):
         key = os.getenv("OPENAI_API_KEY", "")
         if not key or len(key) < 20:
-            r.fail_test("OPENAI_API_KEY missing or too short")
+            missing_key(r, "OPENAI_API_KEY missing or too short")
         else:
             r.pass_test(f"Key present ({key[:8]}...)")
 
     def test_anthropic_key(r):
         key = os.getenv("ANTHROPIC_API_KEY", "")
         if not key or len(key) < 20:
-            r.fail_test("ANTHROPIC_API_KEY missing or too short")
+            missing_key(r, "ANTHROPIC_API_KEY missing or too short")
         else:
             r.pass_test(f"Key present ({key[:8]}...)")
 
     def test_bsd_key(r):
         key = os.getenv("BSD_API_KEY", "")
         if not key or len(key) < 10:
-            r.fail_test("BSD_API_KEY missing or too short")
+            missing_key(r, "BSD_API_KEY missing or too short")
         else:
             r.pass_test(f"Key present ({key[:8]}...)")
 
@@ -986,22 +996,34 @@ if __name__ == "__main__":
     print("=" * 60)
 
     results = []
+    crashes = {}
+
+    def run_suite(suite_name, suite_fn):
+        # A suite that raises outside TestSuite.run (e.g. a failing import at
+        # the top of the suite) counts as that suite failing; the rest still run.
+        try:
+            passed = suite_fn()
+        except Exception as e:
+            crashes[suite_name] = f"{type(e).__name__}: {e}"
+            print(f"\n  [x] {suite_name} suite crashed — {crashes[suite_name]}")
+            passed = False
+        results.append((suite_name, passed))
 
     # ── TIER 1 (always runs) ──
-    results.append(("Environment", run_environment_tests()))
-    results.append(("Cache System", run_cache_tests()))
-    results.append(("Intent Classifier", run_intent_tests()))
-    results.append(("NBA Quality", run_nba_quality_tests()))
-    results.append(("F1 Quality", run_f1_quality_tests()))
-    results.append(("Soccer Quality", run_soccer_quality_tests()))
-    results.append(("Valorant Quality", run_valorant_quality_tests()))
-    results.append(("MLB Quality", run_mlb_quality_tests()))
-    results.append(("Error Handling", run_error_handling_tests()))
+    run_suite("Environment", run_environment_tests)
+    run_suite("Cache System", run_cache_tests)
+    run_suite("Intent Classifier", run_intent_tests)
+    run_suite("NBA Quality", run_nba_quality_tests)
+    run_suite("F1 Quality", run_f1_quality_tests)
+    run_suite("Soccer Quality", run_soccer_quality_tests)
+    run_suite("Valorant Quality", run_valorant_quality_tests)
+    run_suite("MLB Quality", run_mlb_quality_tests)
+    run_suite("Error Handling", run_error_handling_tests)
 
     # ── TIER 2 (only with --live flag) ──
     if RUN_LIVE:
-        results.append(("API Connectivity", run_api_tests()))
-        results.append(("Live Pipelines", run_live_pipeline_tests()))
+        run_suite("API Connectivity", run_api_tests)
+        run_suite("Live Pipelines", run_live_pipeline_tests)
 
     # Final summary
     print("\n" + "=" * 60)
@@ -1012,6 +1034,8 @@ if __name__ == "__main__":
     for suite_name, passed in results:
         icon = "+" if passed else "x"
         status = "PASS" if passed else "FAIL"
+        if suite_name in crashes:
+            status += f" (crashed: {crashes[suite_name]})"
         print(f"  [{icon}] {suite_name}: {status}")
         if not passed:
             all_passed = False
@@ -1022,3 +1046,5 @@ if __name__ == "__main__":
     else:
         print("SYSTEM STATUS: ISSUES FOUND — SEE ABOVE")
     print("=" * 60)
+
+    sys.exit(0 if all_passed else 1)
