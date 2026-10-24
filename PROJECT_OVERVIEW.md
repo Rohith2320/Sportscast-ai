@@ -211,7 +211,7 @@ No graph-level retry policy is configured on any node. The only graph-level safe
 
 **narrative_agent.py** — the only Opus call, and the last step before `END`. Prompt assembles: persona instructions from `utils/personas.py`, a storylines block (sport-aware truncation of match/player analysis — MLB/F1 get 1500 chars, NBA/Valorant get 800), and a sport-specific 4-paragraph structure template (separate hardcoded templates for F1, Valorant, MLB, and a generic one for the rest). Requires "at least two specific statistics" per paragraph. Reads `match_analysis`/`player_analysis` without `.get()` defaults (would `KeyError` if missing, caught by the outer `try/except`), plus `persona` and playoff context if present.
 
-**chat_agent.py** — the most complex file (585 lines), and the only one not using Claude. The file still defines a `chat_node()` wrapper from when chat was a graph node; nothing calls it now (`POST /chat` uses the functions below directly). Intent classification is pure Python keyword matching over 7 categories (`classify_intent`, `chat_agent.py:52-127`), not an LLM call. Player/entity matching is regex + substring. Context retrieval varies by intent (factual pulls a specific player section; predictive pulls the full match analysis plus 2500 chars of player analysis; etc.). History beyond 8 turns gets summarized into a synthetic exchange. An optional Mem0 long-term-memory layer activates if `MEM0_ENABLED=true`, wrapped in bare `try/except: pass`. The final generation call uses a system+user split (system prompt carries grounding rules and per-intent format instructions), `temperature=0.7`.
+**chat_agent.py** — the most complex file (475 lines), and the only one not using Claude. It exposes plain functions rather than a graph node; `POST /chat` and `mcp_server.py` call them directly. Intent classification is pure Python keyword matching over 7 categories (`classify_intent`, `chat_agent.py:52-127`), not an LLM call. Player/entity matching is regex + substring. Context retrieval varies by intent (factual pulls a specific player section; predictive pulls the full match analysis plus 2500 chars of player analysis; etc.). History beyond 8 turns gets summarized into a synthetic exchange. The file still defines a Mem0 long-term-memory helper (`_get_memory()`, gated on `MEM0_ENABLED=true`), but nothing calls it: its only caller was the deleted `chat_node()`, and `POST /chat` never used Mem0, so setting `MEM0_ENABLED` currently has no effect. The final generation call uses a system+user split (system prompt carries grounding rules and per-intent format instructions), `temperature=0.7`.
 
 **Runtime per agent**: no benchmark data exists anywhere in the repo. `utils/logger.py`'s `log_agent_start`/`log_agent_complete` print per-agent wall-clock duration to stdout at runtime, but nothing persists or aggregates those numbers — I could not find logged timing data, a benchmarks file, or CI timing output to cite. The only thing I can say with confidence from the code: `narrative` is the last node in the dependency chain (after both `match_analysis` and `player_analysis` complete) and uses the larger/slower Opus model, so it is very likely the single biggest latency contributor, but I cannot give you a number.
 
@@ -339,7 +339,7 @@ Summing these ceilings (plus input tokens, which I can't bound precisely without
 | `ELEVENLABS_API_KEY` | Optional | TTS, falls back to browser speech synthesis if unset |
 | `RIOT_API_KEY` | Optional, tests only | not read anywhere in `api/` or `data_sources/` |
 | `LANGCHAIN_API_KEY`, `LANGCHAIN_TRACING_V2`, `LANGCHAIN_PROJECT` | Optional | LangSmith tracing |
-| `MEM0_ENABLED` | Optional | chat agent's long-term memory |
+| `MEM0_ENABLED` | Optional | currently no effect — `chat_agent._get_memory()` reads it, but nothing calls that helper |
 | `RAPIDAPI_KEY`, `BALLDONTLIE_API_KEY` | Optional, tests only | not read in app code |
 | `VITE_API_URL` | Optional | frontend build arg, defaults to `http://localhost:8000` |
 
@@ -395,7 +395,7 @@ Being direct, as asked:
 
 ### Resolved since this document was first written
 
-- **Dead `chat` graph node** — removed from `graph.py`. Chat runs only through `POST /chat`, which calls `chat_agent`'s functions directly. (The unused `chat_node()` function itself still exists in `chat_agent.py`.)
+- **Dead `chat` graph node** — removed from `graph.py`, and the orphaned `chat_node()` function deleted from `chat_agent.py`. Chat runs only through `POST /chat`, which calls `chat_agent`'s functions directly.
 - **README model claims** — corrected: only `narrative_agent` uses Opus 4.8; match/player/enrichment use Sonnet 4.6; chat uses GPT-4o-mini.
 - **Soccer vendor name** — the README now names `sports.bzzoiro.com`, matching the code.
 - **`BSD_API_KEY` required-vs-optional contradiction** — `.env.example` now lists it as optional, matching `api/main.py`'s startup check.
