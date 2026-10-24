@@ -12,6 +12,3 @@ ui-react/dist/
 .pytest_cache/
 tests/
 README.md
-.streamlit/
-ui/
-inspect_cache*.py
