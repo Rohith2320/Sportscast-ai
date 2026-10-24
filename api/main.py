@@ -82,7 +82,7 @@ app = FastAPI(
 
 
 # ─────────────────────────────────────────────
-# CORS — allow Streamlit UI to call the API
+# CORS — allow the React UI to call the API
 # ─────────────────────────────────────────────
 
 app.add_middleware(

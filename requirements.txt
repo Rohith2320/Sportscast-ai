@@ -15,4 +15,3 @@ pydantic
 pytz
 fastmcp
 mem0ai
-streamlit
